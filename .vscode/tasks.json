@@ -1,0 +1,68 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Setup venv + install dependencies",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "-m",
+                "venv",
+                ".venv-win"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Install dependencies",
+            "type": "shell",
+            "command": "${workspaceFolder}\\.venv-win\\Scripts\\python.exe",
+            "args": [
+                "-m",
+                "pip",
+                "install",
+                "--upgrade",
+                "pip",
+                "-r",
+                "requirements.txt"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [],
+            "dependsOn": [
+                "Setup venv + install dependencies"
+            ]
+        },
+        {
+            "label": "Run BLE_app",
+            "type": "shell",
+            "command": "${workspaceFolder}\\.venv-win\\Scripts\\python.exe",
+            "args": [
+                "main.py"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "isBackground": true,
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "dependsOn": [
+                "Install dependencies"
+            ]
+        }
+    ]
+}

@@ -12,11 +12,15 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 echo "==> Stopping and disabling systemd service..."
-systemctl stop "$SERVICE_NAME" 2>/dev/null || true
-systemctl disable "$SERVICE_NAME" 2>/dev/null || true
-if [ -f "$SERVICE_FILE" ]; then
-  rm -f "$SERVICE_FILE"
-  systemctl daemon-reload
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl stop "$SERVICE_NAME" 2>/dev/null || true
+  systemctl disable "$SERVICE_NAME" 2>/dev/null || true
+  if [ -f "$SERVICE_FILE" ]; then
+    rm -f "$SERVICE_FILE"
+    systemctl daemon-reload
+  fi
+else
+  echo "systemctl not found, skipping (e.g. running under WSL)."
 fi
 
 if command -v nmcli >/dev/null 2>&1; then
