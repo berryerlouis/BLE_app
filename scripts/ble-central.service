@@ -1,0 +1,15 @@
+[Unit]
+Description=BLE IMU Central + Web Dashboard
+After=network-online.target bluetooth.target NetworkManager.service
+Wants=network-online.target bluetooth.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/BLE_app
+ExecStart=/home/pi/BLE_app/.venv/bin/python /home/pi/BLE_app/main.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,10 @@
+# Secrets (Wi-Fi password, etc.) — never commit these
+secrets.yaml
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IMU BLE Dashboard</title>
+  <link rel="stylesheet" href="static/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+<body>
+  <header>
+    <h1>IMU BLE Central</h1>
+    <div class="status">
+      <span id="conn-dot" class="dot offline"></span>
+      <span id="conn-text">Serveur déconnecté</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Table view: list of all satellites -->
+    <section id="devices-view">
+      <h2>Satellites BLE</h2>
+      <table id="devices-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Nom</th>
+            <th>Adresse</th>
+            <th>Accel (g)</th>
+            <th>Gyro (dps)</th>
+            <th>Temp (°C)</th>
+            <th>Batterie</th>
+            <th>Dernière donnée</th>
+          </tr>
+        </thead>
+        <tbody id="devices-tbody">
+          <tr id="no-devices-row"><td colspan="8" class="muted">En attente de satellites...</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Detail view: charts + full log for one satellite -->
+    <section id="detail-view" class="hidden">
+      <button id="back-btn">&larr; Retour à la liste</button>
+      <h2 id="detail-title">Satellite</h2>
+
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h3>Accéléromètre (g)</h3>
+          <canvas id="accelChart"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>Gyroscope (dps)</h3>
+          <canvas id="gyroChart"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>Température (°C)</h3>
+          <canvas id="tempChart"></canvas>
+        </div>
+      </div>
+
+      <div class="log-card">
+        <h3>Journal complet</h3>
+        <div id="log-panel"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>IMU BLE Central v<span id="footer-version">--</span> &middot; par <span id="footer-author">--</span></span>
+    <span class="update-area">
+      <span id="update-status"></span>
+      <button id="update-btn" class="hidden">Mettre à jour</button>
+    </span>
+  </footer>
+
+  <script src="static/app.js"></script>
+</body>
+</html>
+
