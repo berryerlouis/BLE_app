@@ -9,7 +9,7 @@ Au démarrage, le Raspberry Pi :
 1. Crée un point d'accès Wi-Fi (`ble_ap`) auquel on peut se connecter avec un téléphone/PC.
 2. Démarre la centrale BLE qui scanne en continu et se connecte à chaque satellite "IMU Capture"
    détecté (identifié par son adresse BLE), avec reconnexion automatique par satellite.
-3. Sert un tableau de bord web sur `http://<ip-du-pi>:8080` :
+3. Sert un tableau de bord web sur `http://<ip-du-pi>:80` :
    - une **liste** de tous les satellites (statut, dernières valeurs, batterie)
    - en cliquant sur un satellite, une **vue détail** avec graphiques temps réel et le
      **journal complet** des messages reçus (jusqu'à 2000 entrées conservées côté serveur).
@@ -74,7 +74,7 @@ journalctl -u ble-central -f
 
 - `ble.device_name` : nom annoncé par l'Arduino (`BLE.setLocalName("IMU Capture")`)
 - `ble.*_char_uuid` : UUIDs des caractéristiques (déjà alignés sur le firmware)
-- `web.port` : port du serveur web (8080 par défaut)
+- `web.port` : port du serveur web (80 par défaut)
 - `wifi_ap.ssid` / `wifi_ap.interface` : SSID et interface du point d'accès Wi-Fi (dans `config.yaml`, versionné)
 - `wifi_ap.password` : **mot de passe du point d'accès**, stocké uniquement dans `secrets.yaml`
   (copié depuis `secrets.example.yaml`). Ce fichier est dans `.gitignore` et n'est **jamais commité**.
@@ -108,7 +108,7 @@ nmcli connection modify "Wired connection 1" connection.autoconnect yes connecti
 1. Allumer l'Arduino `IMU_Capture` (il advertise en BLE).
 2. Le Raspberry Pi démarre son point d'accès Wi-Fi (SSID défini dans `config.yaml`) **en plus**
    de sa connexion Ethernet existante.
-3. Se connecter à ce Wi-Fi depuis un téléphone/PC, puis ouvrir `http://<ip-du-pi>:8080`
+3. Se connecter à ce Wi-Fi depuis un téléphone/PC, puis ouvrir `http://<ip-du-pi>:80`
    (IP par défaut du côté "shared" NetworkManager : généralement `10.42.0.1`).
    Le dashboard reste aussi accessible via l'IP Ethernet du Pi.
 4. Le dashboard affiche en direct l'accéléromètre, le gyroscope, la température et la batterie.
@@ -143,4 +143,4 @@ python -m venv .venv
 pip install -r requirements.txt
 python main.py
 ```
-Ouvrir `http://localhost:8080` dans un navigateur (aucun point d'accès Wi-Fi n'est requis en local).
+Ouvrir `http://localhost:80` dans un navigateur (aucun point d'accès Wi-Fi n'est requis en local).
