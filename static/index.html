@@ -6,6 +6,8 @@
   <title>IMU BLE Dashboard</title>
   <link rel="stylesheet" href="static/style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2"></script>
 </head>
 <body>
   <header>
@@ -30,11 +32,12 @@
             <th>Gyro (dps)</th>
             <th>Temp (°C)</th>
             <th>Batterie</th>
-            <th>Dernière donnée</th>
+            <th>Seuil (g)</th>
+            <th id="col-last-update" class="sortable">Dernière donnée <span class="sort-arrow" id="last-update-arrow">▼</span></th>
           </tr>
         </thead>
         <tbody id="devices-tbody">
-          <tr id="no-devices-row"><td colspan="8" class="muted">En attente de satellites...</td></tr>
+          <tr id="no-devices-row"><td colspan="9" class="muted">En attente de satellites...</td></tr>
         </tbody>
       </table>
     </section>
@@ -42,18 +45,50 @@
     <!-- Detail view: charts + full log for one satellite -->
     <section id="detail-view" class="hidden">
       <button id="back-btn">&larr; Retour à la liste</button>
-      <h2 id="detail-title">Satellite</h2>
+      <div class="detail-title-row">
+        <h2 id="detail-title">Satellite</h2>
+        <button id="edit-label-btn" class="icon-btn" type="button" aria-label="Modifier le nom et le numéro" title="Modifier le nom et le numéro">
+          <i data-lucide="pencil"></i>
+        </button>
+        <div class="threshold-card">
+          <span class="threshold-card-label">Seuil de commotion</span>
+          <span class="threshold-card-value"><strong id="threshold-value">--</strong> g</span>
+          <button id="impact-reset-btn" class="btn btn-secondary">Réinitialiser Seuil</button>
+          <span id="threshold-error" class="error-inline hidden"></span>
+        </div>
+      </div>
+
+      <div class="detail-toolbar">
+        <label class="toggle">
+          <input type="checkbox" id="realtime-toggle" checked />
+          <span>Temps réel</span>
+        </label>
+        <label class="toggle-label" for="log-sort-select">Tri du journal</label>
+        <button id="reset-zoom-btn" class="btn btn-secondary">Réinitialiser le zoom</button>
+        <label class="toggle">
+          <input type="checkbox" id="gyro-chart-toggle" />
+          <span>Gyroscope</span>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" id="temp-chart-toggle" />
+          <span>Température</span>
+        </label>
+      </div>
+
+      <div id="impact-banner" class="impact-banner hidden">
+        Seuil de commotion dépassé (<span id="impact-banner-value">--</span> g)
+      </div>
 
       <div class="charts-grid">
         <div class="chart-card">
           <h3>Accéléromètre (g)</h3>
           <canvas id="accelChart"></canvas>
         </div>
-        <div class="chart-card">
+        <div class="chart-card hidden" id="gyro-chart-card">
           <h3>Gyroscope (dps)</h3>
           <canvas id="gyroChart"></canvas>
         </div>
-        <div class="chart-card">
+        <div class="chart-card hidden" id="temp-chart-card">
           <h3>Température (°C)</h3>
           <canvas id="tempChart"></canvas>
         </div>
@@ -103,6 +138,26 @@
     </div>
   </div>
 
+  <!-- Label modal: asks for a name + number (0-1000) for newly discovered satellites -->
+  <div id="label-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2 id="label-modal-title">Nouveau satellite découvert</h2>
+      <div class="modal-body">
+        <p>Adresse : <span class="mono" id="label-device-id">--</span></p>
+        <label class="field-label" for="label-name-input">Nom</label>
+        <input type="text" id="label-name-input" class="field-input" placeholder="ex. player" maxlength="50" />
+        <label class="field-label" for="label-number-input">Numéro (0-1000)</label>
+        <input type="number" id="label-number-input" class="field-input" min="0" max="1000" placeholder="ex. 10" />
+        <p id="label-error" class="error-text hidden"></p>
+      </div>
+      <div class="modal-actions">
+        <button id="label-later-btn" class="btn btn-secondary">Plus tard</button>
+        <button id="label-save-btn" class="btn btn-primary">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
   <script src="static/app.js"></script>
 </body>
 </html>

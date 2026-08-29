@@ -13,6 +13,10 @@ web:
   host: "0.0.0.0"
   port: 80
 
+database:
+  # SQLite file storing devices/history so the web page keeps past data across restarts.
+  path: "data.db"
+
 wifi_ap:
   ssid: "BLE-IMU-Central"
   # password is NOT stored here: copy secrets.example.yaml to secrets.yaml and set it there

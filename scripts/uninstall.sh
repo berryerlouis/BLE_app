@@ -30,6 +30,9 @@ if command -v nmcli >/dev/null 2>&1; then
   nmcli connection delete "ble-wired" >/dev/null 2>&1 || true
 fi
 
+echo "==> Removing SQLite database..."
+rm -f "$APP_DIR/data.db"
+
 echo "==> Removing Python virtual environment..."
 rm -rf "$APP_DIR/.venv"
 

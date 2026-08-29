@@ -54,6 +54,33 @@ main {
 
 #devices-view h2, #detail-view h2 { font-size: 1.05rem; margin: 0 0 12px 0; }
 
+.detail-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.detail-title-row h2 { margin-bottom: 12px; }
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  margin-bottom: 12px;
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid #2a333c;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.icon-btn:hover { background: #232c34; color: var(--accent); }
+.icon-btn svg { width: 16px; height: 16px; }
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -71,11 +98,99 @@ th, td {
 
 th { color: var(--muted); font-weight: 500; }
 
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { color: var(--text); }
+.sort-arrow { font-size: 0.7em; opacity: 0.7; margin-left: 4px; }
+
 tr.device-row { cursor: pointer; }
 tr.device-row:hover { background: #232c34; }
+tr.device-row.impact { background: rgba(248, 81, 73, 0.18); color: var(--off); }
+tr.device-row.impact:hover { background: rgba(248, 81, 73, 0.28); }
+tr.device-row.impact td.mono { color: var(--off); }
 
 td.mono { font-family: "Consolas", "SFMono-Regular", monospace; color: var(--muted); }
 td.muted { color: var(--muted); text-align: center; }
+
+.detail-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  background: var(--card);
+  border-radius: 10px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.toggle input { accent-color: var(--accent); }
+
+.toggle-label { margin: 0; }
+
+.detail-toolbar select {
+  background: #0d1116;
+  color: var(--text);
+  border: 1px solid #2a333c;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.9rem;
+}
+
+.threshold-input {
+  width: 90px;
+  background: #0d1116;
+  color: var(--text);
+  border: 1px solid #2a333c;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.9rem;
+}
+
+.row-threshold { width: 78px; padding: 4px 6px; cursor: text; }
+
+.error-inline { color: #f72585; font-size: 0.85rem; }
+
+.threshold-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-left: auto;
+  margin-bottom: 12px;
+  padding: 10px 16px;
+  background: var(--card);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px rgba(76, 201, 240, 0.15);
+}
+
+.threshold-card-label {
+  font-size: 0.9rem;
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.threshold-card-value {
+  font-size: 1.4rem;
+  color: var(--accent);
+}
+
+.threshold-card-value strong { color: var(--accent); }
+
+.impact-banner {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(248, 81, 73, 0.15);
+  border: 1px solid var(--off);
+  color: var(--off);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
 
 #back-btn {
   background: var(--card);
@@ -108,7 +223,8 @@ td.muted { color: var(--muted); text-align: center; }
   font-weight: 500;
 }
 
-canvas { max-height: 260px; }
+canvas { max-height: 260px; cursor: grab; }
+canvas:active { cursor: grabbing; }
 
 .log-card {
   background: var(--card);
@@ -136,6 +252,7 @@ canvas { max-height: 260px; }
 .log-line { white-space: pre; padding: 1px 0; }
 .log-line.log-status { color: var(--accent); }
 .log-line.log-battery_voltage, .log-line.log-battery_level { color: #f9c74f; }
+.log-line.log-impact { color: var(--off); font-weight: 600; }
 
 footer {
   display: flex;
@@ -199,6 +316,36 @@ footer {
   margin: 0 0 16px 0;
   color: var(--muted);
   font-size: 0.95rem;
+}
+
+.modal-body .mono {
+  font-family: "Consolas", "SFMono-Regular", monospace;
+  color: var(--text);
+}
+
+.field-label {
+  display: block;
+  margin: 0 0 6px 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.field-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  margin-bottom: 16px;
+  border-radius: 6px;
+  border: 1px solid #2a333c;
+  background: #0d1116;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.error-text {
+  color: #f72585;
+  font-size: 0.9rem;
+  margin: -8px 0 12px 0;
 }
 
 .version-info {

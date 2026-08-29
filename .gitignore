@@ -6,5 +6,8 @@ secrets.yaml
 __pycache__/
 *.pyc
 
+# Local satellite data database
+data.db
+
 # OS
 .DS_Store

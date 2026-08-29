@@ -9,6 +9,7 @@ import yaml
 from aiohttp import web
 
 from ble_central.ble_client import DeviceManager
+from ble_central.db import DEFAULT_DB_PATH
 from ble_central.server import create_app
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -27,7 +28,9 @@ async def main() -> None:
     data_queue: "asyncio.Queue[dict]" = asyncio.Queue()
 
     ble_manager = DeviceManager(config["ble"], data_queue)
-    app = create_app(data_queue)
+    db_path = config.get("database", {}).get("path")
+    db_path = (CONFIG_PATH.parent / db_path).resolve() if db_path else DEFAULT_DB_PATH
+    app = create_app(data_queue, db_path=db_path)
 
     runner = web.AppRunner(app)
     await runner.setup()

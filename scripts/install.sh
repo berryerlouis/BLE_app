@@ -30,6 +30,12 @@ sudo -u "${SUDO_USER:-pi}" python3 -m venv "$APP_DIR/.venv"
 "$APP_DIR/.venv/bin/pip" install --upgrade pip
 "$APP_DIR/.venv/bin/pip" install -r "$APP_DIR/requirements.txt"
 
+if [ ! -f "$APP_DIR/data.db" ]; then
+  echo "==> Initializing SQLite database..."
+  touch "$APP_DIR/data.db"
+  chown "${SUDO_USER:-pi}:${SUDO_USER:-pi}" "$APP_DIR/data.db"
+fi
+
 if [ ! -f "$APP_DIR/secrets.yaml" ]; then
   echo "==> No secrets.yaml found, creating one from secrets.example.yaml (edit the Wi-Fi password!)..."
   sudo -u "${SUDO_USER:-pi}" cp "$APP_DIR/secrets.example.yaml" "$APP_DIR/secrets.yaml"

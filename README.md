@@ -22,6 +22,7 @@ Au démarrage, le Raspberry Pi :
 - reconnect automatique par périphérique
 - tableau de bord centralisé avec liste des appareils et détail par périphérique
 - graphiques temps réel via Chart.js
+- historique persistant des appareils et journaux dans une base SQLite locale
 - journal des messages avec historique côté serveur
 - footer avec version locale et auteur
 - vérification de mise à jour via GitHub (`origin/main`)
@@ -32,7 +33,8 @@ Au démarrage, le Raspberry Pi :
 ```text
 BLE_app/
 ├── main.py                  # point d'entrée: lance la centrale BLE + le serveur web
-├── config.yaml              # UUIDs BLE, nom du device, interface AP, port web
+├── config.yaml              # UUIDs BLE, nom du device, interface AP, port web, emplacement SQLite
+├── data.db                  # base SQLite locale: appareils + historique des logs
 ├── secrets.example.yaml     # modèle de secrets pour le mot de passe du hotspot
 ├── secrets.yaml             # fichier local, non versionné, contient le mot de passe Wi‑Fi
 ├── VERSION                  # version de l’application
@@ -41,14 +43,15 @@ BLE_app/
 ├── ble_central/
 │   ├── __init__.py
 │   ├── ble_client.py        # connexion BLE, notifications, reconnexion
+│   ├── db.py                # persistance SQLite des appareils et logs
 │   ├── models.py            # décodage des structures IMU et batterie
 │   ├── server.py            # serveur aiohttp + API + websocket
 │   └── update.py            # vérification et application des mises à jour
 ├── scripts/
-│   ├── install.sh           # installation système + venv + service
+│   ├── install.sh           # installation système + venv + base de données + service
 │   ├── setup_ap.sh          # création du hotspot Wi‑Fi via NetworkManager
 │   ├── ble-central.service  # service systemd
-│   ├── uninstall.sh
+│   ├── uninstall.sh         # suppression du service, du venv et de la base SQLite
 │   └── update.sh            # mise à jour manuelle du dépôt
 ├── static/
 │   ├── index.html
@@ -110,8 +113,11 @@ Le fichier [config.yaml](config.yaml) contient les paramètres applicatifs, nota
 - `ble.*_char_uuid`: UUIDs des services et caractéristiques du firmware
 - `web.host` / `web.port`: adresse d’écoute et port du serveur web
 - `wifi_ap.ssid` / `wifi_ap.interface`: SSID et interface du hotspot
+- `database.path`: chemin de la base SQLite locale (`data.db` par défaut), utilisée pour stocker les résumés des appareils et l’historique des logs à travers les redémarrages
 
 Le mot de passe du point d’accès ne doit pas être stocké dans [config.yaml](config.yaml). Il est défini dans [secrets.yaml](secrets.yaml), copié depuis [secrets.example.yaml](secrets.example.yaml), puis ignoré par Git.
+
+La base SQLite est créée automatiquement lors du démarrage si elle n’existe pas, et conserve les données déjà vues dans le dashboard pour éviter de perdre l’historique après un redémarrage du service.
 
 Après modification de la config :
 
