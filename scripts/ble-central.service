@@ -6,6 +6,7 @@ Wants=network-online.target bluetooth.target
 [Service]
 Type=simple
 User=pi
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 WorkingDirectory=/home/pi/BLE_app
 ExecStart=/home/pi/BLE_app/.venv/bin/python /home/pi/BLE_app/main.py
 Restart=always

@@ -78,5 +78,5 @@ nmcli connection up "$CON_NAME"
 
 echo "Access point '$SSID' is up on $IFACE. Connected clients will get an IP via NAT (10.42.x.x)."
 echo "Ethernet stays the default route (ipv4.never-default yes on the hotspot), so SSH over eth0 is preserved."
-echo "Dashboard will be reachable at http://<pi-ip>:8080 once the ble-central service starts."
+echo "Dashboard will be reachable at http://<pi-ip>:80 once the ble-central service starts."
 
