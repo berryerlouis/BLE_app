@@ -226,7 +226,7 @@ function connectWebSocket() {
 loadInitialDevices();
 connectWebSocket();
 
-const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+const UPDATE_CHECK_INTERVAL_MS = 10 * 1000;//5 * 60 * 1000;
 const footerVersion = document.getElementById("footer-version");
 const footerAuthor = document.getElementById("footer-author");
 const updateBtn = document.getElementById("update-btn");
