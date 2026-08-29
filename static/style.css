@@ -273,4 +273,37 @@ footer {
   background: #3a434c;
 }
 
+.update-progress-container {
+  margin-top: 20px;
+}
+
+.update-progress-container.hidden {
+  display: none;
+}
+
+.progress-bar-wrapper {
+  width: 100%;
+  height: 6px;
+  background: #0d1116;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #4cc9f0, #7bd88f);
+  width: 0%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 10px rgba(76, 201, 240, 0.5);
+}
+
+.progress-text {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-align: center;
+}
+
 

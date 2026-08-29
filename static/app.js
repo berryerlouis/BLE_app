@@ -274,17 +274,58 @@ async function checkForUpdate() {
   }
 }
 
+const updateProgressContainer = document.getElementById("update-progress-container");
+const updateProgressBar = document.getElementById("update-progress-bar");
+const updateProgressText = document.getElementById("update-progress-text");
+const updateMessage = document.getElementById("update-message");
+const versionInfo = document.getElementById("version-info");
+
+function setUpdateProgress(percent, text) {
+  updateProgressBar.style.width = percent + "%";
+  if (text) updateProgressText.textContent = text;
+}
+
+function showUpdateProgress() {
+  updateMessage.classList.add("hidden");
+  versionInfo.classList.add("hidden");
+  updateProgressContainer.classList.remove("hidden");
+  updateProgressBar.style.width = "0%";
+  setUpdateProgress(0, "Téléchargement...");
+}
+
+function hideUpdateProgress() {
+  updateMessage.classList.remove("hidden");
+  versionInfo.classList.remove("hidden");
+  updateProgressContainer.classList.add("hidden");
+}
+
 updateConfirmBtn.addEventListener("click", async () => {
   updateConfirmBtn.disabled = true;
-  updateStatus.textContent = "Mise à jour en cours...";
+  updateCancelBtn.disabled = true;
+  showUpdateProgress();
+  
+  // Simulate progress
+  let progress = 0;
+  const progressInterval = setInterval(() => {
+    progress += Math.random() * 20;
+    if (progress > 90) progress = 90;
+    setUpdateProgress(progress, "Mise à jour en cours...");
+  }, 500);
+  
   try {
     const res = await fetch("/api/update/apply", { method: "POST" });
+    clearInterval(progressInterval);
     if (!res.ok) throw new Error(await res.text());
+    
+    setUpdateProgress(100, "Installation terminée, redémarrage...");
     updateStatus.textContent = "Mise à jour appliquée, redémarrage du service...";
     setTimeout(() => location.reload(), 8000);
   } catch (err) {
+    clearInterval(progressInterval);
+    setUpdateProgress(0, "Échec de la mise à jour");
     updateStatus.textContent = "Échec de la mise à jour.";
     updateConfirmBtn.disabled = false;
+    updateCancelBtn.disabled = false;
     console.error("Update failed", err);
   }
 });

@@ -78,8 +78,8 @@
     <div class="modal-content">
       <h2>Mise à jour disponible</h2>
       <div class="modal-body">
-        <p>Une nouvelle version est disponible :</p>
-        <div class="version-info">
+        <p id="update-message">Une nouvelle version est disponible :</p>
+        <div class="version-info" id="version-info">
           <div class="version-item">
             <span class="version-label">Version actuelle :</span>
             <span class="version-value" id="current-version">--</span>
@@ -88,6 +88,12 @@
             <span class="version-label">Nouvelle version :</span>
             <span class="version-value accent" id="latest-version">--</span>
           </div>
+        </div>
+        <div id="update-progress-container" class="update-progress-container hidden">
+          <div class="progress-bar-wrapper">
+            <div class="progress-bar" id="update-progress-bar"></div>
+          </div>
+          <p id="update-progress-text" class="progress-text">Mise à jour en cours...</p>
         </div>
       </div>
       <div class="modal-actions">
