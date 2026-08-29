@@ -229,7 +229,6 @@ connectWebSocket();
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const footerVersion = document.getElementById("footer-version");
 const footerAuthor = document.getElementById("footer-author");
-const updateBtn = document.getElementById("update-btn");
 const updateStatus = document.getElementById("update-status");
 
 async function loadVersion() {
