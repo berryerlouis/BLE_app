@@ -27,6 +27,9 @@ class DeviceManager:
         self._stop = asyncio.Event()
         self._sessions: dict[str, asyncio.Task] = {}
         self._scanner: BleakScanner | None = None
+        # WinRT (Windows) can't reliably resolve GATT services for two devices at once,
+        # so only one connect+discovery runs at a time even with multiple satellites.
+        self._connect_lock = asyncio.Lock()
 
     def stop(self) -> None:
         self._stop.set()
@@ -77,7 +80,10 @@ class DeviceManager:
     async def _connect_and_stream(self, device: BLEDevice, name: str) -> None:
         address = device.address
         log.info("Connecting to %s (%s)", name, address)
-        async with BleakClient(device) as client:
+        client = BleakClient(device, winrt={"use_cached_services": False})
+        async with self._connect_lock:
+            await client.connect()
+        try:
             await self._queue.put(
                 {"type": "status", "device_id": address, "device_name": name, "connected": True, "timestamp": time.time()}
             )
@@ -102,11 +108,12 @@ class DeviceManager:
             await client.start_notify(self._cfg["battery_voltage_char_uuid"], battery_voltage_handler)
             await client.start_notify(self._cfg["battery_level_char_uuid"], battery_level_handler)
 
-            try:
-                while client.is_connected and not self._stop.is_set():
-                    await asyncio.sleep(1)
-            finally:
-                await self._queue.put(
-                    {"type": "status", "device_id": address, "device_name": name, "connected": False, "timestamp": time.time()}
-                )
-                log.info("Disconnected from %s (%s)", name, address)
+            while client.is_connected and not self._stop.is_set():
+                await asyncio.sleep(1)
+        finally:
+            if client.is_connected:
+                await client.disconnect()
+            await self._queue.put(
+                {"type": "status", "device_id": address, "device_name": name, "connected": False, "timestamp": time.time()}
+            )
+            log.info("Disconnected from %s (%s)", name, address)
