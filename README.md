@@ -1,146 +1,190 @@
 # BLE_app — Centrale BLE Raspberry Pi pour IMU_Capture
 
-Ce projet transforme un Raspberry Pi en **centrale BLE** qui se connecte automatiquement
-à **plusieurs** périphériques Arduino [`IMU_Capture`](../IMU_Capture) ("IMU Capture"), et affiche
-un **tableau de tous les satellites connectés** ainsi que le **détail en direct** (graphiques +
-journal complet) de chacun sur une page web.
+Ce projet transforme un Raspberry Pi en centrale BLE qui détecte, connecte et suit plusieurs capteurs Arduino `IMU_Capture` sur un même réseau local. Le dashboard web affiche pour chaque satellite :
+
+- statut de connexion
+- dernières valeurs d'accéléromètre, gyroscope et température
+- niveau et tension de batterie
+- journal complet des messages reçus
+- vue détaillée avec graphiques temps réel
 
 Au démarrage, le Raspberry Pi :
-1. Crée un point d'accès Wi-Fi (`ble_ap`) auquel on peut se connecter avec un téléphone/PC.
-2. Démarre la centrale BLE qui scanne en continu et se connecte à chaque satellite "IMU Capture"
-   détecté (identifié par son adresse BLE), avec reconnexion automatique par satellite.
-3. Sert un tableau de bord web sur `http://<ip-du-pi>:80` :
-   - une **liste** de tous les satellites (statut, dernières valeurs, batterie)
-   - en cliquant sur un satellite, une **vue détail** avec graphiques temps réel et le
-     **journal complet** des messages reçus (jusqu'à 2000 entrées conservées côté serveur).
+1. active un point d'accès Wi‑Fi local pour permettre la connexion depuis un téléphone ou un PC
+2. lance la centrale BLE qui scanne continuellement et se connecte automatiquement aux périphériques `IMU Capture` détectés
+3. sert un tableau de bord sur `http://<ip-du-pi>:80`
+
+## Fonctionnalités actuelles
+
+- détection et suivi de plusieurs satellites BLE simultanément
+- reconnect automatique par périphérique
+- tableau de bord centralisé avec liste des appareils et détail par périphérique
+- graphiques temps réel via Chart.js
+- journal des messages avec historique côté serveur
+- footer avec version locale et auteur
+- vérification de mise à jour via GitHub (`origin/main`)
+- modal de mise à jour avec barre de progression et redémarrage automatique du service
 
 ## Architecture
 
-```
+```text
 BLE_app/
-├── main.py                  # point d'entrée (asyncio): lance BLE + serveur web
-├── config.yaml              # UUIDs BLE, nom du device, SSID/mot de passe AP, port web
+├── main.py                  # point d'entrée: lance la centrale BLE + le serveur web
+├── config.yaml              # UUIDs BLE, nom du device, interface AP, port web
+├── secrets.example.yaml     # modèle de secrets pour le mot de passe du hotspot
+├── secrets.yaml             # fichier local, non versionné, contient le mot de passe Wi‑Fi
+├── VERSION                  # version de l’application
 ├── requirements.txt
+├── README.md
 ├── ble_central/
-│   ├── models.py             # dataclasses miroir des structs C (ImuData, BatteryData)
-│   ├── ble_client.py         # bleak: scan continu, une session par satellite découvert
-│   └── server.py             # aiohttp: page statique, API /api/devices(/log), websocket /ws
+│   ├── __init__.py
+│   ├── ble_client.py        # connexion BLE, notifications, reconnexion
+│   ├── models.py            # décodage des structures IMU et batterie
+│   ├── server.py            # serveur aiohttp + API + websocket
+│   └── update.py            # vérification et application des mises à jour
+├── scripts/
+│   ├── install.sh           # installation système + venv + service
+│   ├── setup_ap.sh          # création du hotspot Wi‑Fi via NetworkManager
+│   ├── ble-central.service  # service systemd
+│   ├── uninstall.sh
+│   └── update.sh            # mise à jour manuelle du dépôt
 ├── static/
-│   ├── index.html, app.js, style.css   # tableau des satellites + vue détail (Chart.js + logs)
-└── scripts/
-    ├── setup_ap.sh            # crée le hotspot Wi-Fi via NetworkManager (nmcli)
-    ├── ble-central.service    # unité systemd pour lancer l'app au boot
-    └── install.sh             # installe tout en une commande
+│   ├── index.html
+│   ├── app.js               # rendu du dashboard et logique d’update
+│   └── style.css
+└── .venv/                   # généré localement lors de l’installation
 ```
 
 ## Correspondance avec le firmware Arduino
 
-Le firmware `IMU_Capture` (`Ble.cpp`) expose :
-- Service `2A6F0001-...` avec :
-  - Caractéristique `2A6F0002-...` (notify) : struct `{aX,aY,aZ,gX,gY,gZ,temp}` = 7 floats LE (28 octets)
-  - Caractéristique `2A6F0003-...` (notify) : `voltage` (float, 4 octets)
-- Service standard batterie `180F`, caractéristique `2A19` (niveau %, 1 octet)
+Le firmware `IMU_Capture` expose :
 
-`ble_central/models.py` décode ces octets exactement dans cet ordre/format.
+- service `2A6F0001-...`
+  - caractéristique `2A6F0002-...` en `notify`: structure `{ax, ay, az, gx, gy, gz, temp}` en floats little-endian
+  - caractéristique `2A6F0003-...` en `notify`: tension de batterie (float)
+- service batterie standard `180F`, caractéristique `2A19` : niveau batterie (% sur 1 octet)
 
-Tous les satellites Arduino peuvent partager le même nom BLE (`IMU Capture`) : la centrale les
-distingue par leur **adresse BLE** (MAC), qui sert d'identifiant unique dans le tableau et l'URL du détail.
+Le décodage est fait dans [ble_central/models.py](ble_central/models.py) et doit rester aligné avec la structure du firmware côté Arduino.
+
+Les capteurs peuvent tous annoncer le même nom BLE (`IMU Capture`); la centrale les distingue par leur adresse MAC BLE, utilisée comme identifiant unique dans le tableau et dans la vue détail.
+
+## Prérequis
+
+- Raspberry Pi OS Bookworm ou plus récent
+- Bluetooth activé
+- NetworkManager installé et utilisé par défaut
+- accès root pour installer le service et le hotspot
 
 ## Installation sur le Raspberry Pi
-
-Prérequis : Raspberry Pi OS **Bookworm** ou plus récent (NetworkManager par défaut), Bluetooth activé.
 
 ```bash
 cd ~
 git clone https://github.com/berryerlouis/BLE_app.git BLE_app
 cd BLE_app
-cp secrets.example.yaml secrets.yaml   # puis éditer secrets.yaml et mettre le vrai mot de passe Wi-Fi
+cp secrets.example.yaml secrets.yaml
+# puis éditer secrets.yaml pour définir le mot de passe Wi‑Fi du point d’accès
 sudo ./scripts/install.sh
 ```
 
-Ce script :
-- installe les paquets système (`bluez`, `network-manager`, `python3-venv`)
-- crée un environnement virtuel Python et installe `requirements.txt`
-- configure le point d'accès Wi-Fi (`scripts/setup_ap.sh`, éditable via `config.yaml` → `wifi_ap`)
-- installe et démarre le service systemd `ble-central` (auto-restart, démarrage au boot)
+Le script installe :
 
-Vérifier l'état :
+- paquets système (`bluez`, `network-manager`, `python3-venv`)
+- un environnement virtuel Python et les dépendances de [requirements.txt](requirements.txt)
+- un point d’accès Wi‑Fi via [scripts/setup_ap.sh](scripts/setup_ap.sh)
+- le service systemd [scripts/ble-central.service](scripts/ble-central.service)
+
+Vérifier l’état ensuite :
+
 ```bash
 systemctl status ble-central
 journalctl -u ble-central -f
 ```
 
-## Configuration (`config.yaml` / `secrets.yaml`)
+## Configuration
 
-- `ble.device_name` : nom annoncé par l'Arduino (`BLE.setLocalName("IMU Capture")`)
-- `ble.*_char_uuid` : UUIDs des caractéristiques (déjà alignés sur le firmware)
-- `web.port` : port du serveur web (80 par défaut)
-- `wifi_ap.ssid` / `wifi_ap.interface` : SSID et interface du point d'accès Wi-Fi (dans `config.yaml`, versionné)
-- `wifi_ap.password` : **mot de passe du point d'accès**, stocké uniquement dans `secrets.yaml`
-  (copié depuis `secrets.example.yaml`). Ce fichier est dans `.gitignore` et n'est **jamais commité**.
+Le fichier [config.yaml](config.yaml) contient les paramètres applicatifs, notamment :
 
-Après modification, relancer `sudo ./scripts/setup_ap.sh` (Wi-Fi) et/ou
-`sudo systemctl restart ble-central` (app).
+- `ble.device_name`: nom des capteurs BLE attendus (`IMU Capture`)
+- `ble.*_char_uuid`: UUIDs des services et caractéristiques du firmware
+- `web.host` / `web.port`: adresse d’écoute et port du serveur web
+- `wifi_ap.ssid` / `wifi_ap.interface`: SSID et interface du hotspot
 
-## Wi-Fi AP + Ethernet en même temps
+Le mot de passe du point d’accès ne doit pas être stocké dans [config.yaml](config.yaml). Il est défini dans [secrets.yaml](secrets.yaml), copié depuis [secrets.example.yaml](secrets.example.yaml), puis ignoré par Git.
 
-`scripts/setup_ap.sh` ne touche que l'interface Wi-Fi (`wifi_ap.interface`, `wlan0` par défaut) :
-- il crée/renforce un profil NetworkManager dédié pour l'Ethernet (`ble-wired`, autoconnect,
-  priorité 200) pour garantir qu'il redémarre toujours automatiquement,
-- il force `ipv4.never-default yes` sur le point d'accès Wi-Fi pour que la route par défaut
-  (accès Internet) reste sur Ethernet, seul le trafic vers le sous-réseau du hotspot (`10.42.x.x`)
-  passe par `wlan0`.
+Après modification de la config :
 
-**Si l'Ethernet a été coupé avec l'ancienne version du script**, reconnecte-toi en Wi-Fi ou en
-local et relance simplement :
+```bash
+sudo ./scripts/setup_ap.sh
+sudo systemctl restart ble-central
+```
+
+## Wi‑Fi AP + Ethernet
+
+Le script [scripts/setup_ap.sh](scripts/setup_ap.sh) ne touche que l’interface Wi‑Fi configurée dans [config.yaml](config.yaml). Il crée ou renforce un profil NetworkManager dédié pour l’Ethernet afin d’assurer la redémarrage automatique du réseau filaire, et il force la route par défaut à rester sur Ethernet pour que le trafic du réseau hotspot (`10.42.x.x`) passe uniquement via le Wi‑Fi.
+
+En cas de problème après une ancienne version du script :
+
 ```bash
 sudo ./scripts/setup_ap.sh
 ```
-Ou restaure manuellement l'Ethernet :
+
+Ou, si nécessaire, réactiver manuellement le profil Ethernet :
+
 ```bash
-nmcli connection show                     # lister les profils
-nmcli connection up "Wired connection 1"  # ou le nom de ton profil filaire
+nmcli connection show
+nmcli connection up "Wired connection 1"
 nmcli connection modify "Wired connection 1" connection.autoconnect yes connection.autoconnect-priority 200
 ```
 
 ## Utilisation
 
-1. Allumer l'Arduino `IMU_Capture` (il advertise en BLE).
-2. Le Raspberry Pi démarre son point d'accès Wi-Fi (SSID défini dans `config.yaml`) **en plus**
-   de sa connexion Ethernet existante.
-3. Se connecter à ce Wi-Fi depuis un téléphone/PC, puis ouvrir `http://<ip-du-pi>:80`
-   (IP par défaut du côté "shared" NetworkManager : généralement `10.42.0.1`).
-   Le dashboard reste aussi accessible via l'IP Ethernet du Pi.
-4. Le dashboard affiche en direct l'accéléromètre, le gyroscope, la température et la batterie.
+1. allumer les Arduino `IMU_Capture`
+2. démarrer le Raspberry Pi ou redémarrer le service
+3. se connecter au Wi‑Fi du point d’accès configuré
+4. ouvrir `http://<ip-du-pi>:80`
 
-## Version et mise à jour automatique
+Le dashboard reste aussi accessible via l’IP Ethernet du Raspberry Pi.
 
-Le pied de page du dashboard affiche la version courante (fichier [`VERSION`](VERSION)) et l'auteur.
+## Mise à jour automatique
 
-Le serveur expose :
-- `GET /api/version` : version locale + auteur
-- `GET /api/update/check` : compare `HEAD` local à `origin/main` sur
-  [berryerlouis/BLE_app](https://github.com/berryerlouis/BLE_app) (via `git fetch`)
-- `POST /api/update/apply` : `git reset --hard origin/main` + réinstalle `requirements.txt`,
-  puis quitte le process (le service systemd `Restart=always` le relance automatiquement)
+Le pied de page du dashboard affiche la version courante et l’auteur, et le serveur expose les endpoints suivants :
 
-Le bouton **"Mettre à jour"** n'apparaît dans le pied de page que lorsqu'une nouvelle version est
-détectée (vérification automatique toutes les 5 minutes). Cliquer dessus déclenche la mise à jour
-et recharge la page une fois le service redémarré.
+- `GET /api/version`: version locale + auteur
+- `GET /api/update/check`: compare le commit local et la version distante sur `origin/main`
+- `POST /api/update/apply`: réinitialise le dépôt sur `origin/main`, réinstalle les dépendances, puis quitte proprement pour permettre au service systemd de redémarrer l’application automatiquement
 
-`secrets.yaml` étant ignoré par git, il n'est jamais écrasé par `git reset --hard`.
+La vérification de version s’exécute automatiquement et le bouton de mise à jour n’apparaît que si une nouvelle version est détectée. La modal affiche aussi une barre de progression pendant l’installation.
 
-On peut aussi mettre à jour manuellement :
+Pour mettre à jour manuellement :
+
 ```bash
 sudo ./scripts/update.sh
 ```
 
-## Développement / test local (Windows/macOS/Linux avec Bluetooth)
+> `secrets.yaml` étant ignoré par Git, il n’est pas écrasé par `git reset --hard origin/main`.
+
+## Développement local
+
+Pour tester localement sur un ordinateur (Windows/macOS/Linux), sans point d’accès Raspberry Pi :
 
 ```bash
 python -m venv .venv
-.venv\Scripts\activate   # ou source .venv/bin/activate
+# Windows
+.venv\Scripts\activate
+# macOS/Linux
+# source .venv/bin/activate
+
 pip install -r requirements.txt
 python main.py
 ```
-Ouvrir `http://localhost:80` dans un navigateur (aucun point d'accès Wi-Fi n'est requis en local).
+
+Ouvrez ensuite :
+
+```text
+http://localhost:80
+```
+
+## Notes
+
+- la version actuelle est stockée dans [VERSION](VERSION)
+- le code de la mise à jour est dans [ble_central/update.py](ble_central/update.py)
+- le dashboard web est servi depuis [static/index.html](static/index.html) et [static/app.js](static/app.js)
