@@ -70,9 +70,32 @@
     <span>IMU BLE Central v<span id="footer-version">--</span> &middot; par <span id="footer-author">--</span></span>
     <span class="update-area">
       <span id="update-status"></span>
-      <button id="update-btn" class="hidden">Mettre à jour</button>
     </span>
   </footer>
+
+  <!-- Update modal -->
+  <div id="update-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Mise à jour disponible</h2>
+      <div class="modal-body">
+        <p>Une nouvelle version est disponible :</p>
+        <div class="version-info">
+          <div class="version-item">
+            <span class="version-label">Version actuelle :</span>
+            <span class="version-value" id="current-version">--</span>
+          </div>
+          <div class="version-item">
+            <span class="version-label">Nouvelle version :</span>
+            <span class="version-value accent" id="latest-version">--</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="update-cancel-btn" class="btn btn-secondary">Plus tard</button>
+        <button id="update-confirm-btn" class="btn btn-primary">Mettre à jour</button>
+      </div>
+    </div>
+  </div>
 
   <script src="static/app.js"></script>
 </body>

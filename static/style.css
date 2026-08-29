@@ -145,20 +145,132 @@ footer {
   border-top: 1px solid #2a333c;
   font-size: 0.8rem;
   color: var(--muted);
+  flex-shrink: 0;
+  margin-top: auto;
 }
 
 .update-area { display: flex; align-items: center; gap: 10px; }
 
-#update-btn {
-  background: var(--accent);
-  color: #071016;
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 28px 24px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-content h2 {
+  margin: 0 0 20px 0;
+  font-size: 1.3rem;
+  color: var(--text);
+}
+
+.modal-body {
+  margin-bottom: 24px;
+}
+
+.modal-body p {
+  margin: 0 0 16px 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.version-info {
+  background: #0d1116;
+  border-radius: 8px;
+  padding: 16px;
+  gap: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.version-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.version-label {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.version-value {
+  color: var(--text);
+  font-weight: 600;
+  font-family: "Consolas", "SFMono-Regular", monospace;
+  font-size: 0.95rem;
+}
+
+.version-value.accent {
+  color: var(--accent);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.btn {
+  padding: 10px 18px;
   border: none;
   border-radius: 6px;
-  padding: 6px 12px;
   font-weight: 600;
+  font-size: 0.9rem;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
-#update-btn:hover { filter: brightness(1.1); }
-#update-btn:disabled { opacity: 0.6; cursor: default; }
+
+.btn-primary {
+  background: var(--accent);
+  color: #071016;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.1);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.btn-secondary {
+  background: #2a333c;
+  color: var(--text);
+  border: 1px solid #444c56;
+}
+
+.btn-secondary:hover {
+  background: #3a434c;
+}
 
 

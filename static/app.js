@@ -226,7 +226,7 @@ function connectWebSocket() {
 loadInitialDevices();
 connectWebSocket();
 
-const UPDATE_CHECK_INTERVAL_MS = 10 * 1000;//5 * 60 * 1000;
+const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const footerVersion = document.getElementById("footer-version");
 const footerAuthor = document.getElementById("footer-author");
 const updateBtn = document.getElementById("update-btn");
@@ -243,15 +243,31 @@ async function loadVersion() {
   }
 }
 
+const updateModal = document.getElementById("update-modal");
+const updateConfirmBtn = document.getElementById("update-confirm-btn");
+const updateCancelBtn = document.getElementById("update-cancel-btn");
+const currentVersionSpan = document.getElementById("current-version");
+const latestVersionSpan = document.getElementById("latest-version");
+
+function showUpdateModal(currentVersion, latestVersion) {
+  currentVersionSpan.textContent = currentVersion;
+  latestVersionSpan.textContent = latestVersion;
+  updateModal.classList.remove("hidden");
+}
+
+function hideUpdateModal() {
+  updateModal.classList.add("hidden");
+}
+
 async function checkForUpdate() {
   try {
     const res = await fetch("/api/update/check");
     const info = await res.json();
     if (info.update_available) {
-      updateBtn.classList.remove("hidden");
+      showUpdateModal(info.current_version, info.latest_version);
       updateStatus.textContent = `Nouvelle version disponible : v${info.latest_version}`;
     } else {
-      updateBtn.classList.add("hidden");
+      hideUpdateModal();
       updateStatus.textContent = info.error ? info.error : "";
     }
   } catch (err) {
@@ -259,8 +275,8 @@ async function checkForUpdate() {
   }
 }
 
-updateBtn.addEventListener("click", async () => {
-  updateBtn.disabled = true;
+updateConfirmBtn.addEventListener("click", async () => {
+  updateConfirmBtn.disabled = true;
   updateStatus.textContent = "Mise à jour en cours...";
   try {
     const res = await fetch("/api/update/apply", { method: "POST" });
@@ -269,13 +285,18 @@ updateBtn.addEventListener("click", async () => {
     setTimeout(() => location.reload(), 8000);
   } catch (err) {
     updateStatus.textContent = "Échec de la mise à jour.";
-    updateBtn.disabled = false;
+    updateConfirmBtn.disabled = false;
     console.error("Update failed", err);
   }
 });
 
+updateCancelBtn.addEventListener("click", () => {
+  hideUpdateModal();
+  updateStatus.textContent = "";
+});
+
 loadVersion();
-checkForUpdate();
-setInterval(checkForUpdate, UPDATE_CHECK_INTERVAL_MS);
+checkForUpdate(); // Check immediately on page load
+setInterval(checkForUpdate, UPDATE_CHECK_INTERVAL_MS); // Then check every 5 minutes
 
 
