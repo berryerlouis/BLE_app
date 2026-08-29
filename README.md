@@ -1,5 +1,8 @@
 # BLE_app — Centrale BLE Raspberry Pi pour IMU_Capture
 
+[![CI](https://github.com/berryerlouis/BLE_app/actions/workflows/check.yml/badge.svg)](https://github.com/berryerlouis/BLE_app/actions/workflows/check.yml)
+[![Version](https://img.shields.io/badge/version-0.0.4-blue)](VERSION)
+
 Ce projet transforme un Raspberry Pi en centrale BLE qui détecte, connecte et suit plusieurs capteurs Arduino `IMU_Capture` sur un même réseau local. Le dashboard web affiche pour chaque satellite :
 
 - statut de connexion
