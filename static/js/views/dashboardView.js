@@ -16,10 +16,11 @@ import {
 } from '../utils.js';
 
 export class DashboardView {
-  constructor(onOpenPlayer, onEditLabel, onNewSession, onSelectSession) {
+  constructor(onOpenPlayer, onEditLabel, onNewSession, onEndSession, onSelectSession) {
     this.onOpenPlayer = onOpenPlayer;
     this.onEditLabel = onEditLabel;
     this.onNewSession = onNewSession;
+    this.onEndSession = onEndSession;
     this.onSelectSession = onSelectSession;
 
     this.container = document.getElementById('devices-view');
@@ -29,6 +30,7 @@ export class DashboardView {
     // Global Header Session elements
     this.globalSessionSelect = document.getElementById('global-session-select');
     this.newSessionBtn = document.getElementById('new-session-btn');
+    this.endSessionBtn = document.getElementById('end-session-btn');
 
     // Historical Dashboard Banner elements
     this.dashHistoryBanner = document.getElementById('dashboard-history-banner');
@@ -67,6 +69,10 @@ export class DashboardView {
 
     this.newSessionBtn?.addEventListener('click', () => {
       if (this.onNewSession) this.onNewSession();
+    });
+
+    this.endSessionBtn?.addEventListener('click', () => {
+      if (this.onEndSession) this.onEndSession();
     });
 
     // Search input
@@ -151,6 +157,7 @@ export class DashboardView {
   renderSessionSelector() {
     if (!this.globalSessionSelect) return;
     const sessions = state.sessions || [];
+      if (this.endSessionBtn) this.endSessionBtn.disabled = !state.activeSession?.is_active;
     if (sessions.length === 0) {
       this.globalSessionSelect.innerHTML = '<option value="">Aucune session</option>';
       return;
@@ -245,7 +252,7 @@ export class DashboardView {
     return `
       <tr class="device-row ${hasAlert ? 'impact-row' : ''} ${!isConnected ? 'disconnected-row' : ''}" data-device-id="${escapeHtml(mac)}">
         <!-- Status -->
-        <td class="col-status">
+        <td class="col-status" data-label="Statut">
           <div class="status-indicator-wrapper" title="${isConnected ? 'Connecté' : 'Déconnecté'}">
             <span class="status-dot ${isConnected ? 'dot-online' : 'dot-offline'}"></span>
             <span class="status-text ${isConnected ? 'text-online' : 'text-offline'}">
@@ -255,7 +262,7 @@ export class DashboardView {
         </td>
 
         <!-- Player info -->
-        <td class="col-player">
+        <td class="col-player" data-label="Joueur">
           <div class="player-cell-content">
             <div class="player-avatar ${hasAlert ? 'avatar-alert' : ''}">
               <i data-lucide="${hasAlert ? 'alert-triangle' : 'activity'}"></i>
@@ -273,12 +280,12 @@ export class DashboardView {
         </td>
 
         <!-- Absolute G magnitude in real-time -->
-        <td class="col-g">
+        <td class="col-g" data-label="|a| (G)">
           ${this.getGValueBadgeHtml(mag, threshold, hasAlert)}
         </td>
 
         <!-- Temperature -->
-        <td class="col-temp">
+        <td class="col-temp" data-label="Température">
           <div class="temp-badge" title="Température du capteur">
             <i data-lucide="thermometer"></i>
             <span class="temp-val">${temp !== undefined ? `${fmt(temp, 1)}°C` : '--'}</span>
@@ -286,7 +293,7 @@ export class DashboardView {
         </td>
 
         <!-- Concussion threshold for this player -->
-        <td class="col-threshold">
+        <td class="col-threshold" data-label="Seuil commotion">
           <div class="threshold-input-wrapper">
             <input 
               type="number" 
@@ -303,7 +310,7 @@ export class DashboardView {
         </td>
 
         <!-- Battery -->
-        <td class="col-battery">
+        <td class="col-battery" data-label="Batterie">
           <div class="battery-cell" title="${d.battery_voltage !== undefined ? `${fmt(d.battery_voltage, 2)} V` : ''}">
             <i data-lucide="${battery.icon}" class="battery-icon" style="color: ${battery.color}"></i>
             <span class="battery-text">${battery.text}</span>
@@ -311,10 +318,10 @@ export class DashboardView {
         </td>
 
         <!-- Last update -->
-        <td class="col-lastseen text-muted font-mono">${lastSeen}</td>
+        <td class="col-lastseen text-muted font-mono" data-label="Dernière donnée">${lastSeen}</td>
 
         <!-- Action / Open -->
-        <td class="col-actions">
+        <td class="col-actions" data-label="">
           <button type="button" class="btn btn-primary-soft btn-sm view-player-btn" data-device-id="${escapeHtml(mac)}" title="Voir les graphiques et le joueur">
             <span>Détails</span>
             <i data-lucide="chevron-right"></i>

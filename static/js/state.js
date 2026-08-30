@@ -140,8 +140,9 @@ class StateStore {
     } else if (msg.type === 'session_ended') {
       this.sessions = this.sessions.map((s) => (s.id === msg.session.id ? msg.session : s));
       if (this.activeSession?.id === msg.session.id) {
-        this.activeSession = msg.session;
+        this.activeSession = null;
       }
+      this.selectedSessionId = msg.session.id;
       this.notify('sessions_updated', {
         sessions: this.sessions,
         activeSession: this.activeSession,

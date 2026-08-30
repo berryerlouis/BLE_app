@@ -20,6 +20,7 @@ class App {
       (deviceId) => this.showPlayerView(deviceId),
       (deviceId) => this.modalView.showLabelModal(deviceId, 'edit'),
       () => this.modalView.showSessionModal(),
+      () => this.endActiveSession(),
       (sessionId) => this.switchSession(sessionId)
     );
 
@@ -128,6 +129,27 @@ class App {
       }
     }
     progressBar.complete();
+  }
+
+  async endActiveSession() {
+    const activeSession = state.activeSession;
+    if (!activeSession?.is_active) return;
+
+    const confirmed = window.confirm(`Terminer et archiver « ${activeSession.name} » ?`);
+    if (!confirmed) return;
+
+    const endButton = this.dashboardView.endSessionBtn;
+    if (endButton) endButton.disabled = true;
+
+    try {
+      const endedSession = await api.endSession(activeSession.id);
+      state.handleWebSocketMessage({ type: 'session_ended', session: endedSession });
+    } catch (err) {
+      console.error('Failed to end active session:', err);
+      window.alert(`Impossible de terminer le match : ${err.message}`);
+    } finally {
+      if (endButton) endButton.disabled = false;
+    }
   }
 
   showDashboardView() {

@@ -347,7 +347,8 @@ async def end_session_handler(request: web.Request) -> web.Response:
         return web.json_response({"error": "Session introuvable"}, status=404)
 
     if request.app["active_session"] and request.app["active_session"]["id"] == session_id:
-        request.app["active_session"] = ended
+        request.app["active_session"] = None
+        request.app["logs"] = {}
 
     await _broadcast_message(
         request.app,

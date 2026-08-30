@@ -2,7 +2,12 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>IMU BLE Dashboard - Suivi Télémétrie & Commotions</title>
   
   <!-- Fonts -->
@@ -51,6 +56,10 @@
         <i data-lucide="plus-circle"></i>
         <span>Nouveau Match</span>
       </button>
+        <button id="end-session-btn" class="btn btn-danger btn-sm" type="button" title="Terminer et archiver le match en cours">
+          <i data-lucide="square"></i>
+          <span>Terminer le Match</span>
+        </button>
     </div>
 
     <div class="header-actions">
