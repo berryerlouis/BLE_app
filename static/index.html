@@ -3,127 +3,553 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>IMU BLE Dashboard</title>
-  <link rel="stylesheet" href="static/style.css" />
+  <title>IMU BLE Dashboard - Suivi Télémétrie & Commotions</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Styles -->
+  <link rel="stylesheet" href="static/css/main.css" />
+
+  <!-- External Chart & Icon Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
-  <header>
-    <h1>IMU BLE Central</h1>
-    <div class="status">
-      <span id="conn-dot" class="dot offline"></span>
-      <span id="conn-text">Serveur déconnecté</span>
+
+  <!-- Global Fast Loading Progress Bar -->
+  <div id="global-progress-bar" class="global-progress-bar hidden">
+    <div class="global-progress-bar-fill" id="global-progress-bar-fill"></div>
+  </div>
+
+  <!-- Top Header Navigation -->
+  <header class="app-header">
+    <div class="header-brand">
+      <div class="brand-icon-wrapper">
+        <i data-lucide="activity"></i>
+      </div>
+      <div>
+        <h1 class="brand-title">IMU BLE Central</h1>
+        <div class="brand-subtitle">Supervision Télémétrie & Alertes Chocs</div>
+      </div>
+    </div>
+
+    <!-- Match Session Selector & Controls -->
+    <div class="header-session-controls">
+      <div class="session-selector-box">
+        <i data-lucide="calendar" class="session-icon"></i>
+        <select id="global-session-select" class="session-select" title="Sélectionner le match ou la session à afficher">
+          <option value="">Chargement des sessions...</option>
+        </select>
+      </div>
+
+      <button id="new-session-btn" class="btn btn-primary btn-sm" type="button" title="Créer et démarrer un nouveau match">
+        <i data-lucide="plus-circle"></i>
+        <span>Nouveau Match</span>
+      </button>
+    </div>
+
+    <div class="header-actions">
+      <div class="server-status-pill">
+        <span id="conn-dot" class="status-dot dot-offline"></span>
+        <span id="conn-text">Serveur déconnecté</span>
+      </div>
     </div>
   </header>
 
+  <!-- Main Content Body -->
   <main>
-    <!-- Table view: list of all satellites -->
+    
+    <!-- =========================================================================
+         PAGE 1: Dashboard View (Satellites & Players List)
+         ========================================================================= -->
     <section id="devices-view">
-      <h2>Satellites BLE</h2>
-      <table id="devices-table">
-        <thead>
-          <tr>
-            <th></th>
-            <th>Nom</th>
-            <th>Adresse</th>
-            <th>Accel (g)</th>
-            <th>Gyro (dps)</th>
-            <th>Temp (°C)</th>
-            <th>Batterie</th>
-            <th>Seuil (g)</th>
-            <th id="col-last-update" class="sortable">Dernière donnée <span class="sort-arrow" id="last-update-arrow">▼</span></th>
-          </tr>
-        </thead>
-        <tbody id="devices-tbody">
-          <tr id="no-devices-row"><td colspan="9" class="muted">En attente de satellites...</td></tr>
-        </tbody>
-      </table>
+      
+      <!-- Historical Match Banner on Dashboard -->
+      <div id="dashboard-history-banner" class="history-mode-banner hidden">
+        <div class="history-banner-content">
+          <div class="history-badge-icon">
+            <i data-lucide="calendar"></i>
+          </div>
+          <div>
+            <div class="history-title">Consultation du Match : <strong id="dash-history-session-name">--</strong></div>
+            <div class="history-subtitle text-dim">Match archivé du <span id="dash-history-session-date">--</span> &middot; Synthèse des performances et impacts</div>
+          </div>
+        </div>
+        <button id="dash-return-live-btn" class="btn btn-primary-soft btn-sm" type="button">
+          <i data-lucide="radio"></i>
+          <span>Revenir au Direct</span>
+        </button>
+      </div>
+
+      <!-- KPI Top Summary Grid -->
+      <div class="kpi-banner-grid">
+        <div class="kpi-card">
+          <div class="kpi-icon-box kpi-icon-accent">
+            <i data-lucide="radio"></i>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-label">Satellites Enregistrés</span>
+            <span class="kpi-value" id="kpi-total-devices">0</span>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon-box kpi-icon-success">
+            <i data-lucide="wifi"></i>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-label">Satellites Connectés</span>
+            <span class="kpi-value text-success" id="kpi-connected-devices">0</span>
+          </div>
+        </div>
+
+        <div class="kpi-card" id="kpi-card-alerts">
+          <div class="kpi-icon-box kpi-icon-danger">
+            <i data-lucide="alert-triangle"></i>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-label">Alertes Commotion</span>
+            <span class="kpi-value text-danger" id="kpi-active-alerts">0</span>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon-box kpi-icon-warning">
+            <i data-lucide="zap"></i>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-label">Pic G Session</span>
+            <span class="kpi-value font-mono" id="kpi-peak-g">0.0 g</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search & Filters Toolbar -->
+      <div class="dashboard-toolbar">
+        <div class="search-box-wrapper">
+          <i data-lucide="search" class="search-icon"></i>
+          <input 
+            type="text" 
+            id="devices-search-input" 
+            class="search-input" 
+            placeholder="Rechercher par joueur, numéro (#10) ou MAC..." 
+            autocomplete="off"
+          />
+        </div>
+
+        <div class="toolbar-controls">
+          <div class="filter-group">
+            <button type="button" class="filter-btn active" data-filter="all">Tous</button>
+            <button type="button" class="filter-btn" data-filter="connected">Connectés</button>
+            <button type="button" class="filter-btn" data-filter="alert">Alertes Choc</button>
+          </div>
+
+          <div class="sort-select-wrapper">
+            <select id="devices-sort-select" title="Trier la liste">
+              <option value="last_update-desc">Dernière donnée (récent)</option>
+              <option value="last_update-asc">Dernière donnée (ancien)</option>
+              <option value="mag-desc">Valeur |a| G (plus fort)</option>
+              <option value="name-asc">Nom du joueur (A-Z)</option>
+              <option value="temp-desc">Température (plus chaud)</option>
+              <option value="threshold-desc">Seuil Commotion (g)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Satellites Table -->
+      <div class="table-container">
+        <table id="devices-table">
+          <thead>
+            <tr>
+              <th style="width: 130px;">Statut</th>
+              <th>Joueur &amp; Satellite</th>
+              <th style="width: 170px;">Accélération |a| (G)</th>
+              <th style="width: 130px;">Température</th>
+              <th style="width: 140px;">Seuil Commotion</th>
+              <th style="width: 130px;">Batterie</th>
+              <th style="width: 160px;">Dernière Donnée</th>
+              <th style="width: 110px; text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="devices-tbody">
+            <tr id="no-devices-row">
+              <td colspan="8" class="text-muted text-center py-8">
+                <i data-lucide="loader" class="animate-spin mb-2"></i>
+                <div>En attente de satellites BLE...</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
-    <!-- Detail view: charts + full log for one satellite -->
+    <!-- =========================================================================
+         PAGE 2: Player Detail View (Charts & In-depth Telemetry)
+         ========================================================================= -->
     <section id="detail-view" class="hidden">
-      <button id="back-btn">&larr; Retour à la liste</button>
-      <div class="detail-title-row">
-        <h2 id="detail-title">Satellite</h2>
-        <button id="edit-label-btn" class="icon-btn" type="button" aria-label="Modifier le nom et le numéro" title="Modifier le nom et le numéro">
-          <i data-lucide="pencil"></i>
+      
+      <!-- Historical Session Replay Banner (Shown when reviewing a past match) -->
+      <div id="player-history-banner" class="history-mode-banner hidden">
+        <div class="history-banner-content">
+          <div class="history-badge-icon">
+            <i data-lucide="history"></i>
+          </div>
+          <div>
+            <div class="history-title">Session Historique Archivée : <strong id="history-session-name">--</strong></div>
+            <div class="history-subtitle text-dim">Données enregistrées le <span id="history-session-date">--</span> &middot; Mode consultation</div>
+          </div>
+        </div>
+        <button id="return-live-btn" class="btn btn-primary-soft btn-sm" type="button">
+          <i data-lucide="radio"></i>
+          <span>Revenir au Direct</span>
         </button>
-        <div class="threshold-card">
-          <span class="threshold-card-label">Seuil de commotion</span>
-          <span class="threshold-card-value"><strong id="threshold-value">--</strong> g</span>
-          <button id="impact-reset-btn" class="btn btn-secondary">Réinitialiser Seuil</button>
-          <span id="threshold-error" class="error-inline hidden"></span>
+      </div>
+
+      <!-- Player Header Row -->
+      <div class="player-view-header">
+        <div class="player-header-left">
+          <button id="back-btn" class="back-btn" type="button" title="Retour à la liste des satellites">
+            <i data-lucide="arrow-left"></i>
+            <span>Retour</span>
+          </button>
+
+          <div class="player-identity">
+            <div class="player-identity-title">
+              <span id="detail-player-name">Joueur</span>
+              <button id="edit-label-btn" class="icon-subtle-btn" type="button" aria-label="Modifier le nom et numéro" title="Modifier le nom et numéro">
+                <i data-lucide="edit-3"></i>
+              </button>
+            </div>
+            <div class="player-identity-mac" id="detail-player-mac">00:00:00:00:00:00</div>
+          </div>
+
+          <div class="server-status-pill">
+            <span id="detail-status-dot" class="status-dot dot-offline"></span>
+            <span id="detail-status-text">Hors ligne</span>
+          </div>
+        </div>
+
+        <div class="player-header-right">
+          <!-- Session Switcher for this Player -->
+          <div class="player-session-box">
+            <span class="player-session-label">Session :</span>
+            <select id="player-session-select" class="session-select-sm"></select>
+          </div>
+
+          <!-- Concussion Threshold Highlight Card -->
+          <div class="threshold-action-card">
+            <div class="threshold-card-info">
+              <span class="threshold-card-title">Seuil de commotion</span>
+              <span class="threshold-card-val"><strong id="threshold-value">--</strong> g</span>
+            </div>
+            <button id="impact-reset-btn" class="btn btn-secondary btn-sm" type="button">
+              <i data-lucide="rotate-ccw"></i>
+              <span>Acquitter Choc</span>
+            </button>
+            <span id="threshold-error" class="error-banner hidden"></span>
+          </div>
         </div>
       </div>
 
-      <div class="detail-toolbar">
-        <label class="toggle">
-          <input type="checkbox" id="realtime-toggle" checked />
-          <span>Temps réel</span>
-        </label>
-        <label class="toggle-label" for="log-sort-select">Tri du journal</label>
-        <button id="reset-zoom-btn" class="btn btn-secondary">Réinitialiser le zoom</button>
-        <label class="toggle">
-          <input type="checkbox" id="gyro-chart-toggle" />
-          <span>Gyroscope</span>
-        </label>
-        <label class="toggle">
-          <input type="checkbox" id="temp-chart-toggle" />
-          <span>Température</span>
-        </label>
-      </div>
-
-      <div id="impact-banner" class="impact-banner hidden">
-        Seuil de commotion dépassé (<span id="impact-banner-value">--</span> g)
-      </div>
-
-      <div class="charts-grid">
-        <div class="chart-card">
-          <h3>Accéléromètre (g)</h3>
-          <canvas id="accelChart"></canvas>
-        </div>
-        <div class="chart-card hidden" id="gyro-chart-card">
-          <h3>Gyroscope (dps)</h3>
-          <canvas id="gyroChart"></canvas>
-        </div>
-        <div class="chart-card hidden" id="temp-chart-card">
-          <h3>Température (°C)</h3>
-          <canvas id="tempChart"></canvas>
+      <!-- Concussion Alert Banner -->
+      <div id="impact-banner" class="impact-alert-banner hidden">
+        <i data-lucide="alert-octagon"></i>
+        <div>
+          <strong>ALERTE COMMOTION DÉTECTÉE :</strong> Accélération de 
+          <span id="impact-banner-value" class="font-mono">--</span> g dépassant le seuil de sécurité !
         </div>
       </div>
 
-      <div class="log-card">
-        <h3>Journal complet</h3>
-        <div id="log-panel"></div>
+      <!-- Real-time KPI Cards for Player -->
+      <div class="kpi-banner-grid">
+        <div class="kpi-card">
+          <div class="kpi-icon-box kpi-icon-accent">
+            <i data-lucide="gauge"></i>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-label">Accélération |a|</span>
+            <span class="kpi-value font-mono" id="player-kpi-live-g">-- g</span>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon-box kpi-icon-danger">
+            <i data-lucide="flame"></i>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-label">Pic d'impact (Session)</span>
+            <span class="kpi-value font-mono text-danger" id="player-kpi-max-g">-- g</span>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon-box kpi-icon-warning">
+            <i data-lucide="thermometer"></i>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-label">Température Capteur</span>
+            <span class="kpi-value font-mono text-warning" id="player-kpi-temp">-- °C</span>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon-box kpi-icon-success">
+            <i data-lucide="battery-charging"></i>
+          </div>
+          <div class="kpi-content">
+            <span class="kpi-label">Batterie Satellite</span>
+            <span class="kpi-value" id="player-kpi-battery">--%</span>
+          </div>
+        </div>
       </div>
+
+      <!-- Controls & View Toggles Toolbar -->
+      <div class="detail-toolbar-bar">
+        <div class="toolbar-left">
+          <label class="toggle-switch-label">
+            <input type="checkbox" id="realtime-toggle" checked />
+            <span>Flux Temps Réel</span>
+          </label>
+
+          <button id="show-all-btn" class="btn btn-secondary btn-sm" type="button" title="Afficher l'intégralité du match sur le graphique">
+            <i data-lucide="maximize-2"></i>
+            <span>Tout le match</span>
+          </button>
+
+          <button id="follow-live-btn" class="btn btn-primary-soft btn-sm hidden" type="button" title="Reprendre le suivi en direct des dernières secondes">
+            <i data-lucide="radio"></i>
+            <span>Suivre le direct</span>
+          </button>
+
+          <button id="reset-zoom-btn" class="btn btn-secondary btn-sm" type="button" title="Réinitialiser le niveau de zoom">
+            <i data-lucide="rotate-ccw"></i>
+            <span>Reset Zoom</span>
+          </button>
+        </div>
+
+        <div class="toolbar-right">
+          <label class="toggle-switch-label">
+            <input type="checkbox" id="gyro-chart-toggle" />
+            <span>Gyroscope (dps)</span>
+          </label>
+
+          <label class="toggle-switch-label">
+            <input type="checkbox" id="temp-chart-toggle" />
+            <span>Température (°C)</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Telemetry Charts Grid -->
+      <div class="charts-layout-grid">
+        <div class="chart-card-box span-full">
+          <div class="chart-card-header">
+            <div class="chart-card-title">
+              <i data-lucide="activity"></i>
+              <span>Accéléromètre &amp; Magnitude |a| (g) avec Seuil de Commotion</span>
+            </div>
+            <span class="text-dim font-mono" style="font-size: 0.78rem;">Pincer / Molette pour zoomer &middot; Glisser pour naviguer</span>
+          </div>
+          <div class="chart-canvas-container">
+            <canvas id="accelChart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card-box hidden" id="gyro-chart-card">
+          <div class="chart-card-header">
+            <div class="chart-card-title">
+              <i data-lucide="compass"></i>
+              <span>Vitesse Angulaire / Gyroscope (dps)</span>
+            </div>
+          </div>
+          <div class="chart-canvas-container">
+            <canvas id="gyroChart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card-box hidden" id="temp-chart-card">
+          <div class="chart-card-header">
+            <div class="chart-card-title">
+              <i data-lucide="thermometer"></i>
+              <span>Évolution de la Température (°C)</span>
+            </div>
+          </div>
+          <div class="chart-canvas-container">
+            <canvas id="tempChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Full Log & Activity Panel -->
+      <div class="log-card-box">
+        <div class="log-header-controls">
+          <div class="log-header-title">
+            <i data-lucide="terminal"></i>
+            <span>Journal d'activité télémétrique</span>
+          </div>
+
+          <div class="log-filter-controls">
+            <select id="log-filter-select" class="form-input-sm" title="Filtrer les événements">
+              <option value="all">Tous les événements</option>
+              <option value="impact">Commotions / Chocs</option>
+              <option value="imu">Données IMU</option>
+              <option value="battery">Batterie</option>
+              <option value="status">Connexions / Statuts</option>
+            </select>
+
+            <select id="log-sort-select" class="form-input-sm" title="Ordre du journal">
+              <option value="desc">Plus récent en premier</option>
+              <option value="asc">Chronologique (ancien en 1er)</option>
+            </select>
+
+            <input 
+              type="text" 
+              id="log-search-input" 
+              class="log-search-input" 
+              placeholder="Filtrer dans le journal..." 
+            />
+
+            <button id="log-clear-btn" class="btn btn-secondary btn-sm" type="button" title="Vider l'affichage local">
+              <i data-lucide="trash-2"></i>
+            </button>
+          </div>
+        </div>
+
+        <div id="log-panel" class="log-content-panel"></div>
+      </div>
+
     </section>
   </main>
 
+  <!-- Global Footer -->
   <footer>
-    <span>IMU BLE Central v<span id="footer-version">--</span> &middot; par <span id="footer-author">--</span></span>
-    <span class="update-area">
+    <div class="footer-left">
+      <span>IMU BLE Central v<span id="footer-version">--</span> &middot; Télémétrie Sportive par <span id="footer-author">--</span></span>
+    </div>
+    <div class="footer-right">
       <span id="update-status"></span>
-    </span>
+    </div>
   </footer>
 
-  <!-- Update modal -->
-  <div id="update-modal" class="modal hidden">
-    <div class="modal-content">
-      <h2>Mise à jour disponible</h2>
+  <!-- =========================================================================
+       MODALS & DIALOGS
+       ========================================================================= -->
+
+  <!-- Modal: Create / Start New Match Session -->
+  <div id="session-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>Démarrer un Nouveau Match / Session</h2>
+      </div>
       <div class="modal-body">
-        <p id="update-message">Une nouvelle version est disponible :</p>
+        <p class="text-secondary mb-4" style="font-size: 0.9rem;">
+          Clôture le match en cours et démarre une nouvelle session d'enregistrement télémétrique pour tous les joueurs.
+        </p>
+
+        <div class="form-group">
+          <label class="form-label" for="session-name-input">Intitulé du match / séance</label>
+          <input 
+            type="text" 
+            id="session-name-input" 
+            class="form-input" 
+            placeholder="ex. Match 3 - vs Stade Français" 
+            maxlength="80" 
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="session-notes-input">Notes de séance (optionnel)</label>
+          <textarea 
+            id="session-notes-input" 
+            class="form-input" 
+            placeholder="ex. 1er Tiers-temps, conditions de jeu..."
+            rows="3"
+          ></textarea>
+        </div>
+
+        <p id="session-error" class="error-banner hidden"></p>
+      </div>
+      <div class="modal-footer">
+        <button id="session-cancel-btn" class="btn btn-secondary" type="button">Annuler</button>
+        <button id="session-save-btn" class="btn btn-primary" type="button">
+          <i data-lucide="play"></i>
+          <span>Démarrer le Match</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Edit / Discovered Satellite Label -->
+  <div id="label-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="label-modal-title">Nouveau satellite découvert</h2>
+      </div>
+      <div class="modal-body">
+        <p class="text-secondary mb-4" style="font-size: 0.9rem;">
+          Adresse MAC : <span class="font-mono text-accent" id="label-device-id">--</span>
+        </p>
+
+        <div class="form-group">
+          <label class="form-label" for="label-name-input">Nom du joueur</label>
+          <input 
+            type="text" 
+            id="label-name-input" 
+            class="form-input" 
+            placeholder="ex. Antoine Dupont" 
+            maxlength="50" 
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="label-number-input">Numéro de maillot (0 - 1000)</label>
+          <input 
+            type="number" 
+            id="label-number-input" 
+            class="form-input" 
+            min="0" 
+            max="1000" 
+            placeholder="ex. 9" 
+          />
+        </div>
+
+        <p id="label-error" class="error-banner hidden"></p>
+      </div>
+      <div class="modal-footer">
+        <button id="label-later-btn" class="btn btn-secondary" type="button">Plus tard</button>
+        <button id="label-save-btn" class="btn btn-primary" type="button">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: System Software Update -->
+  <div id="update-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>Mise à jour disponible</h2>
+      </div>
+      <div class="modal-body">
+        <p id="update-message" class="text-secondary mb-4" style="font-size: 0.9rem;">
+          Une nouvelle version logicielle du système est disponible :
+        </p>
+        
         <div class="version-info" id="version-info">
           <div class="version-item">
-            <span class="version-label">Version actuelle :</span>
-            <span class="version-value" id="current-version">--</span>
+            <span class="text-muted">Version actuelle :</span>
+            <span class="font-mono" id="current-version">--</span>
           </div>
           <div class="version-item">
-            <span class="version-label">Nouvelle version :</span>
-            <span class="version-value accent" id="latest-version">--</span>
+            <span class="text-muted">Nouvelle version :</span>
+            <span class="font-mono text-accent font-bold" id="latest-version">--</span>
           </div>
         </div>
+
         <div id="update-progress-container" class="update-progress-container hidden">
           <div class="progress-bar-wrapper">
             <div class="progress-bar" id="update-progress-bar"></div>
@@ -131,34 +557,15 @@
           <p id="update-progress-text" class="progress-text">Mise à jour en cours...</p>
         </div>
       </div>
-      <div class="modal-actions">
-        <button id="update-cancel-btn" class="btn btn-secondary">Plus tard</button>
-        <button id="update-confirm-btn" class="btn btn-primary">Mettre à jour</button>
+      <div class="modal-footer">
+        <button id="update-cancel-btn" class="btn btn-secondary" type="button">Plus tard</button>
+        <button id="update-confirm-btn" class="btn btn-primary" type="button">Mettre à jour</button>
       </div>
     </div>
   </div>
 
-  <!-- Label modal: asks for a name + number (0-1000) for newly discovered satellites -->
-  <div id="label-modal" class="modal hidden">
-    <div class="modal-content">
-      <h2 id="label-modal-title">Nouveau satellite découvert</h2>
-      <div class="modal-body">
-        <p>Adresse : <span class="mono" id="label-device-id">--</span></p>
-        <label class="field-label" for="label-name-input">Nom</label>
-        <input type="text" id="label-name-input" class="field-input" placeholder="ex. player" maxlength="50" />
-        <label class="field-label" for="label-number-input">Numéro (0-1000)</label>
-        <input type="number" id="label-number-input" class="field-input" min="0" max="1000" placeholder="ex. 10" />
-        <p id="label-error" class="error-text hidden"></p>
-      </div>
-      <div class="modal-actions">
-        <button id="label-later-btn" class="btn btn-secondary">Plus tard</button>
-        <button id="label-save-btn" class="btn btn-primary">Enregistrer</button>
-      </div>
-    </div>
-  </div>
-
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="static/app.js"></script>
+  <!-- Main JavaScript App (ES Modules) -->
+  <script type="module" src="static/js/app.js"></script>
 </body>
 </html>
 

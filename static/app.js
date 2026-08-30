@@ -56,10 +56,6 @@ function renderDevicesTable() {
       row = document.createElement("tr");
       row.id = `row-${id}`;
       row.className = "device-row";
-      row.addEventListener("click", (event) => {
-        if (event.target.closest(".row-threshold")) return; // editing the threshold, not opening the device
-        openDetail(id);
-      });
     }
     if (row.contains(document.activeElement)) continue; // don't clobber a threshold being typed
     row.classList.toggle("impact", Boolean(d.impact_alert));
@@ -68,6 +64,14 @@ function renderDevicesTable() {
     maybeQueueLabelPrompt(id);
   }
 }
+
+devicesTbody.addEventListener("click", (event) => {
+  const row = event.target.closest("tr.device-row");
+  if (!row) return;
+  if (event.target.closest(".row-threshold")) return; // editing the threshold, not opening the device
+  const deviceId = row.id.slice("row-".length);
+  if (deviceId) openDetail(deviceId);
+});
 
 // Threshold edited straight from the list (delegated: rows are re-rendered on every message).
 devicesTbody.addEventListener("change", async (event) => {
@@ -173,6 +177,24 @@ function hideLabelModal() {
 }
 
 labelLaterBtn.addEventListener("click", () => {
+  if (labelModalMode === "create") {
+    labelSnoozedUntil.set(labelModalDeviceId, Date.now() + LABEL_SNOOZE_MS);
+  }
+  hideLabelModal();
+  processLabelQueue();
+});
+
+labelModal.addEventListener("click", (event) => {
+  if (event.target !== labelModal) return;
+  if (labelModalMode === "create") {
+    labelSnoozedUntil.set(labelModalDeviceId, Date.now() + LABEL_SNOOZE_MS);
+  }
+  hideLabelModal();
+  processLabelQueue();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || labelModal.classList.contains("hidden")) return;
   if (labelModalMode === "create") {
     labelSnoozedUntil.set(labelModalDeviceId, Date.now() + LABEL_SNOOZE_MS);
   }
@@ -324,10 +346,8 @@ function logLine(msg) {
   switch (msg.type) {
     case "imu":
       return `[${t}] IMU  aX=${fmt(msg.aX)} aY=${fmt(msg.aY)} aZ=${fmt(msg.aZ)}  gX=${fmt(msg.gX)} gY=${fmt(msg.gY)} gZ=${fmt(msg.gZ)}  temp=${fmt(msg.temp, 1)}°C`;
-    case "battery_voltage":
-      return `[${t}] BATTERY voltage=${fmt(msg.voltage)} V`;
-    case "battery_level":
-      return `[${t}] BATTERY level=${msg.percentage}%`;
+    case "battery":
+      return `[${t}] BATTERY voltage=${fmt(msg.voltage)} V, level=${msg.percentage}%`;
     case "status":
       return `[${t}] STATUS ${msg.connected ? "connecté" : "déconnecté"}`;
     case "label":
@@ -546,8 +566,7 @@ function handleMessage(msg) {
   const updated = { ...existing, device_name: msg.device_name ?? existing.device_name, last_update: msg.timestamp };
   if (msg.type === "status") updated.connected = msg.connected;
   else if (msg.type === "imu") Object.assign(updated, { aX: msg.aX, aY: msg.aY, aZ: msg.aZ, gX: msg.gX, gY: msg.gY, gZ: msg.gZ, temp: msg.temp });
-  else if (msg.type === "battery_voltage") updated.battery_voltage = msg.voltage;
-  else if (msg.type === "battery_level") updated.battery_percentage = msg.percentage;
+  else if (msg.type === "battery") { updated.battery_voltage = msg.voltage; updated.battery_percentage = msg.percentage; }
   else if (msg.type === "label") Object.assign(updated, { label_name: msg.label_name, label_number: msg.label_number });
   else if (msg.type === "threshold") updated.impact_threshold = msg.impact_threshold;
   else if (msg.type === "impact") Object.assign(updated, { impact_alert: true, impact_value: msg.impact_value, impact_threshold: msg.impact_threshold });

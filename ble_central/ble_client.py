@@ -2,7 +2,7 @@
 
 Uses bleak so it runs on Linux (BlueZ, e.g. Raspberry Pi) as well as Windows/macOS.
 Every satellite is identified by its BLE address and streamed independently, so several
-"IMU Capture" peripherals can be connected to and monitored at the same time.
+"IMU Satellite" peripherals can be connected to and monitored at the same time.
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import time
 from bleak import BleakClient, BleakScanner
 from bleak.backends.device import BLEDevice
 
-from .models import BatteryLevel, BatteryVoltage, ImuData
+from .models import BatteryData, ImuData
 
 log = logging.getLogger("ble_central")
 
@@ -94,19 +94,13 @@ class DeviceManager:
                 item.update(device_id=address, device_name=name)
                 self._queue.put_nowait(item)
 
-            def battery_voltage_handler(_sender, data: bytearray) -> None:
-                item = BatteryVoltage.from_bytes(bytes(data)).to_dict()
-                item.update(device_id=address, device_name=name)
-                self._queue.put_nowait(item)
-
-            def battery_level_handler(_sender, data: bytearray) -> None:
-                item = BatteryLevel.from_bytes(bytes(data)).to_dict()
+            def battery_handler(_sender, data: bytearray) -> None:
+                item = BatteryData.from_bytes(bytes(data)).to_dict()
                 item.update(device_id=address, device_name=name)
                 self._queue.put_nowait(item)
 
             await client.start_notify(self._cfg["imu_data_char_uuid"], imu_handler)
-            await client.start_notify(self._cfg["battery_voltage_char_uuid"], battery_voltage_handler)
-            await client.start_notify(self._cfg["battery_level_char_uuid"], battery_level_handler)
+            await client.start_notify(self._cfg["battery_data_char_uuid"], battery_handler)
 
             while client.is_connected and not self._stop.is_set():
                 await asyncio.sleep(1)

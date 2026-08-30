@@ -37,7 +37,9 @@ jobs:
         run: python -c "import yaml; [yaml.safe_load(open(path, encoding='utf-8')) for path in ('config.yaml', 'secrets.example.yaml')]"
 
       - name: Check JavaScript syntax
-        run: node --check static/app.js
+        run: |
+          node --check static/js/*.js
+          node --check static/js/views/*.js
 
       - name: Check shell script syntax
         run: bash -n scripts/*.sh

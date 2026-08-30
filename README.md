@@ -13,7 +13,7 @@ Ce projet transforme un Raspberry Pi en centrale BLE qui détecte, connecte et s
 
 Au démarrage, le Raspberry Pi :
 1. active un point d'accès Wi‑Fi local pour permettre la connexion depuis un téléphone ou un PC
-2. lance la centrale BLE qui scanne continuellement et se connecte automatiquement aux périphériques `IMU Capture` détectés
+2. lance la centrale BLE qui scanne continuellement et se connecte automatiquement aux périphériques `IMU Satellite` détectés
 3. sert un tableau de bord sur `http://<ip-du-pi>:80`
 
 ## Fonctionnalités actuelles
@@ -55,8 +55,12 @@ BLE_app/
 │   └── update.sh            # mise à jour manuelle du dépôt
 ├── static/
 │   ├── index.html
-│   ├── app.js               # rendu du dashboard et logique d’update
-│   └── style.css
+│   ├── css/
+│   │   └── main.css         # styles et design system moderne
+│   ├── style.css            # import de rétrocompatibilité
+│   └── js/                  # architecture modulaire ES (app, state, api, charts, views)
+│       ├── app.js
+│       ├── ...
 └── .venv/                   # généré localement lors de l’installation
 ```
 
@@ -66,12 +70,11 @@ Le firmware `IMU_Capture` expose :
 
 - service `2A6F0001-...`
   - caractéristique `2A6F0002-...` en `notify`: structure `{ax, ay, az, gx, gy, gz, temp}` en floats little-endian
-  - caractéristique `2A6F0003-...` en `notify`: tension de batterie (float)
-- service batterie standard `180F`, caractéristique `2A19` : niveau batterie (% sur 1 octet)
+  - caractéristique `2A6F0003-...` en `notify`: structure `{voltage (float), percentage (uint8)}` de la batterie
 
 Le décodage est fait dans [ble_central/models.py](ble_central/models.py) et doit rester aligné avec la structure du firmware côté Arduino.
 
-Les capteurs peuvent tous annoncer le même nom BLE (`IMU Capture`); la centrale les distingue par leur adresse MAC BLE, utilisée comme identifiant unique dans le tableau et dans la vue détail.
+Les capteurs peuvent tous annoncer le même nom BLE (`IMU Satellite`); la centrale les distingue par leur adresse MAC BLE, utilisée comme identifiant unique dans le tableau et dans la vue détail.
 
 ## Prérequis
 
@@ -109,7 +112,7 @@ journalctl -u ble-central -f
 
 Le fichier [config.yaml](config.yaml) contient les paramètres applicatifs, notamment :
 
-- `ble.device_name`: nom des capteurs BLE attendus (`IMU Capture`)
+- `ble.device_name`: nom des capteurs BLE attendus (`IMU Satellite`)
 - `ble.*_char_uuid`: UUIDs des services et caractéristiques du firmware
 - `web.host` / `web.port`: adresse d’écoute et port du serveur web
 - `wifi_ap.ssid` / `wifi_ap.interface`: SSID et interface du hotspot
@@ -196,4 +199,4 @@ http://localhost:80
 
 - la version actuelle est stockée dans [VERSION](VERSION)
 - le code de la mise à jour est dans [ble_central/update.py](ble_central/update.py)
-- le dashboard web est servi depuis [static/index.html](static/index.html) et [static/app.js](static/app.js)
+- le dashboard web est servi depuis [static/index.html](static/index.html) et [static/js/app.js](static/js/app.js)

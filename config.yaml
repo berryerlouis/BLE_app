@@ -1,11 +1,10 @@
 # Configuration for the BLE central / web dashboard app
 
 ble:
-  device_name: "IMU Capture"
+  device_name: "IMU Satellite"
   imu_service_uuid: "2a6f0001-8a7d-4e8b-9c7d-4b2a0b9c0001"
   imu_data_char_uuid: "2a6f0002-8a7d-4e8b-9c7d-4b2a0b9c0001"
-  battery_voltage_char_uuid: "2a6f0003-8a7d-4e8b-9c7d-4b2a0b9c0001"
-  battery_level_char_uuid: "00002a19-0000-1000-8000-00805f9b34fb"
+  battery_data_char_uuid: "2a6f0003-8a7d-4e8b-9c7d-4b2a0b9c0001"
   scan_timeout_s: 10
   reconnect_delay_s: 3
 

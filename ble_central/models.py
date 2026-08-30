@@ -7,7 +7,8 @@ from dataclasses import asdict, dataclass
 
 # Matches: struct { float aX,aY,aZ; float gX,gY,gZ; float temp; } (packed, little-endian)
 _IMU_STRUCT = struct.Struct("<7f")
-_BATTERY_VOLTAGE_STRUCT = struct.Struct("<f")
+# Matches: struct { float voltage; uint8_t percentage; }, padded to 8 bytes by default ARM alignment
+_BATTERY_STRUCT = struct.Struct("<fB3x")
 
 
 @dataclass
@@ -29,24 +30,14 @@ class ImuData:
 
 
 @dataclass
-class BatteryVoltage:
+class BatteryData:
     voltage: float
-
-    @classmethod
-    def from_bytes(cls, data: bytes) -> "BatteryVoltage":
-        return cls(*_BATTERY_VOLTAGE_STRUCT.unpack(data))
-
-    def to_dict(self) -> dict:
-        return {"type": "battery_voltage", "timestamp": time.time(), "voltage": self.voltage}
-
-
-@dataclass
-class BatteryLevel:
     percentage: int
 
     @classmethod
-    def from_bytes(cls, data: bytes) -> "BatteryLevel":
-        return cls(percentage=data[0])
+    def from_bytes(cls, data: bytes) -> "BatteryData":
+        voltage, percentage = _BATTERY_STRUCT.unpack(data)
+        return cls(voltage=voltage, percentage=percentage)
 
     def to_dict(self) -> dict:
-        return {"type": "battery_level", "timestamp": time.time(), "percentage": self.percentage}
+        return {"type": "battery", "timestamp": time.time(), "voltage": self.voltage, "percentage": self.percentage}
