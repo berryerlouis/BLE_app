@@ -4,10 +4,12 @@ and broadcasts live BLE data over a websocket so several satellites can be shown
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 import logging
 import math
 import time
+import zipfile
 from collections import deque
 from pathlib import Path
 
@@ -17,17 +19,25 @@ from . import update
 from .db import Database, DEFAULT_DB_PATH, DEFAULT_IMPACT_THRESHOLD
 
 log = logging.getLogger("web_server")
+user_action_log = logging.getLogger("user_actions")
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+DEFAULT_LOGS_DIR = Path(__file__).resolve().parent.parent / "logs"
 MAX_LOG_ENTRIES_PER_DEVICE = 2000
 MAX_IMPACT_THRESHOLD = 200.0
 
 
-def create_app(data_queue: "asyncio.Queue[dict]", db_path: Path | str = DEFAULT_DB_PATH) -> web.Application:
-    app = web.Application()
+def create_app(
+    data_queue: "asyncio.Queue[dict]",
+    db_path: Path | str = DEFAULT_DB_PATH,
+    logs_dir: Path | str = DEFAULT_LOGS_DIR,
+) -> web.Application:
+    app = web.Application(middlewares=[_user_action_middleware])
     app["websockets"] = set()
     app["data_queue"] = data_queue
     app["db_queue"] = asyncio.Queue()
+    app["logs_dir"] = Path(logs_dir)
+    app["db_path"] = Path(db_path)
     app["devices"] = {}  # device_id -> summary dict
     app["logs"] = {}  # device_id -> deque of raw messages for active session
     app["active_session"] = None
@@ -60,6 +70,10 @@ def create_app(data_queue: "asyncio.Queue[dict]", db_path: Path | str = DEFAULT_
     app.router.add_get("/api/update/check", update_check_handler)
     app.router.add_post("/api/update/apply", update_apply_handler)
 
+    # Diagnostics: lets someone on-site export logs/db for offline analysis once the Pi
+    # is deployed and no longer reachable over SSH.
+    app.router.add_get("/api/logs/export", export_logs_handler)
+
     app.router.add_static("/static/", STATIC_DIR, show_index=False, name="static")
 
     app.on_startup.append(_load_persisted_state)
@@ -72,11 +86,59 @@ def create_app(data_queue: "asyncio.Queue[dict]", db_path: Path | str = DEFAULT_
     return app
 
 
+@web.middleware
+async def _user_action_middleware(request: web.Request, handler):
+    """Records every state-changing user action (button clicks, label edits, session
+    changes, etc.) to a dedicated log file so they can be reviewed after the fact.
+    GETs to noisy/read-only endpoints (polling, static assets, websocket) are skipped.
+    """
+    path = request.path
+    is_noisy = (
+        request.method == "GET"
+        and (path.startswith("/static/") or path == "/ws" or path == "/" or path.endswith("/log"))
+    )
+    response = await handler(request)
+    if not is_noisy:
+        user_action_log.info(
+            "%s %s -> %s (from %s)", request.method, path, response.status, request.remote
+        )
+    return response
+
+
+async def export_logs_handler(request: web.Request) -> web.StreamResponse:
+    """Zips up the application/user-action logs and the SQLite database so someone on-site
+    can download and send them back for offline retesting/analysis (no remote access needed).
+    """
+    logs_dir: Path = request.app["logs_dir"]
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        if logs_dir.is_dir():
+            for log_file in sorted(logs_dir.glob("*.log*")):
+                zf.write(log_file, arcname=f"logs/{log_file.name}")
+        db_path: Path = request.app["db_path"]
+        if db_path.is_file():
+            zf.write(db_path, arcname=db_path.name)
+    buffer.seek(0)
+
+    filename = f"ble_app_logs_{time.strftime('%Y%m%d_%H%M%S')}.zip"
+    return web.Response(
+        body=buffer.getvalue(),
+        content_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 async def _load_persisted_state(app: web.Application) -> None:
     active_session = await app["db"].get_active_session()
     app["active_session"] = active_session
 
     devices, logs = await app["db"].load_all(session_id=active_session["id"])
+    # No BLE link exists yet right after a (re)start: persisted "connected" flags are stale
+    # (the process may have crashed/restarted mid-connection), so force everyone offline until
+    # the scanner actually re-establishes a live session for each satellite.
+    for summary in devices.values():
+        summary["connected"] = False
+        summary["state"] = "disconnected"
     app["devices"] = devices
     app["logs"] = {}
     for device_id, entries in logs.items():
@@ -155,7 +217,7 @@ async def set_device_label_handler(request: web.Request) -> web.Response:
         return web.json_response({"error": "Le numéro doit être compris entre 0 et 1000"}, status=400)
 
     devices = request.app["devices"]
-    summary = devices.setdefault(device_id, {"device_id": device_id, "connected": False})
+    summary = devices.setdefault(device_id, {"device_id": device_id, "connected": False, "state": "disconnected"})
     summary["label_name"] = name
     summary["label_number"] = number
 
@@ -191,7 +253,7 @@ async def set_device_threshold_handler(request: web.Request) -> web.Response:
         )
 
     devices = request.app["devices"]
-    summary = devices.setdefault(device_id, {"device_id": device_id, "connected": False})
+    summary = devices.setdefault(device_id, {"device_id": device_id, "connected": False, "state": "disconnected"})
     summary["impact_threshold"] = threshold
     await request.app["db"].save_device(device_id, summary)
 
@@ -452,7 +514,8 @@ def _update_state(app: web.Application, item: dict) -> dict | None:
 
     devices = app["devices"]
     summary = devices.setdefault(
-        device_id, {"device_id": device_id, "device_name": item.get("device_name", device_id), "connected": False}
+        device_id,
+        {"device_id": device_id, "device_name": item.get("device_name", device_id), "connected": False, "state": "disconnected"},
     )
     if item.get("device_name"):
         summary["device_name"] = item["device_name"]
@@ -468,6 +531,9 @@ def _update_state(app: web.Application, item: dict) -> dict | None:
     msg_type = item["type"]
     if msg_type == "status":
         summary["connected"] = item["connected"]
+        # BLE lifecycle detail: advertising -> connecting -> connected -> subscribed (streaming),
+        # falls back to "connected"/"disconnected" for satellites/clients that don't send it.
+        summary["state"] = item.get("state") or ("connected" if item["connected"] else "disconnected")
     elif msg_type == "imu":
         summary.update({k: item[k] for k in ("aX", "aY", "aZ", "gX", "gY", "gZ", "temp")})
         magnitude = math.sqrt(item["aX"] ** 2 + item["aY"] ** 2 + item["aZ"] ** 2)
@@ -485,6 +551,8 @@ def _update_state(app: web.Application, item: dict) -> dict | None:
     elif msg_type == "battery":
         summary["battery_voltage"] = item["voltage"]
         summary["battery_percentage"] = item["percentage"]
+    elif msg_type == "rssi":
+        summary["rssi"] = item["rssi"]
 
     log_buffer = app["logs"].setdefault(device_id, deque(maxlen=MAX_LOG_ENTRIES_PER_DEVICE))
     log_buffer.append(item)

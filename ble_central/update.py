@@ -13,7 +13,7 @@ log = logging.getLogger("update")
 REPO_DIR = Path(__file__).resolve().parent.parent
 VERSION_FILE = REPO_DIR / "VERSION"
 GIT_BRANCH = "main"
-AUTHOR = "Louis Berryer"
+AUTHOR = "Louis Berryer (Lizia)"
 
 
 def read_local_version() -> str:

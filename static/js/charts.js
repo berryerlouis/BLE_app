@@ -173,9 +173,13 @@ export class ChartManager {
 
     const threshold = currentThreshold ?? CONFIG.DEFAULT_IMPACT_THRESHOLD;
 
-    // Filter and collect IMU points
-    for (const msg of logs) {
-      if (msg.type !== 'imu') continue;
+    // Decimate very large sessions so charts stay fast to draw: keep every Nth point
+    // rather than dumping tens of thousands of points into Chart.js.
+    const imuLogs = logs.filter((msg) => msg.type === 'imu');
+    const step = Math.max(1, Math.ceil(imuLogs.length / CONFIG.MAX_SESSION_RENDER_POINTS));
+
+    for (let i = 0; i < imuLogs.length; i += step) {
+      const msg = imuLogs[i];
       const t = new Date((msg.timestamp ?? Date.now() / 1000) * 1000).toLocaleTimeString([], {
         hour: '2-digit',
         minute: '2-digit',

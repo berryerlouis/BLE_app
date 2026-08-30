@@ -4,6 +4,7 @@
 import { CONFIG } from '../config.js';
 import { api } from '../api.js';
 import { state } from '../state.js';
+import { formatDuration } from '../utils.js';
 
 export class ModalView {
   constructor() {
@@ -36,6 +37,15 @@ export class ModalView {
     this.sessionCancelBtn = document.getElementById('session-cancel-btn');
     this.sessionError = document.getElementById('session-error');
 
+    // End Match / Terminate Session Modal elements
+    this.endSessionModal = document.getElementById('end-session-modal');
+    this.endSessionName = document.getElementById('end-session-name');
+    this.endSessionDuration = document.getElementById('end-session-duration');
+    this.endSessionConfirmBtn = document.getElementById('end-session-confirm-btn');
+    this.endSessionCancelBtn = document.getElementById('end-session-cancel-btn');
+    this.endSessionError = document.getElementById('end-session-error');
+    this.endSessionDurationInterval = null;
+
     this.labelQueue = [];
     this.labelSnoozedUntil = new Map();
     this.activeLabelDeviceId = null;
@@ -60,6 +70,12 @@ export class ModalView {
     });
 
     this.sessionSaveBtn?.addEventListener('click', () => this.handleSaveSession());
+
+    this.endSessionCancelBtn?.addEventListener('click', () => {
+      this.hideEndSessionModal();
+    });
+
+    this.endSessionConfirmBtn?.addEventListener('click', () => this.handleConfirmEndSession());
 
     this.updateCancelBtn?.addEventListener('click', () => {
       this.hideUpdateModal();
@@ -211,6 +227,56 @@ export class ModalView {
       }
     } finally {
       if (this.sessionSaveBtn) this.sessionSaveBtn.disabled = false;
+    }
+  }
+
+  // --- End Match / Terminate Session Modal ---
+
+  showEndSessionModal() {
+    const activeSession = state.activeSession;
+    if (!activeSession?.is_active) return;
+
+    if (this.endSessionName) this.endSessionName.textContent = activeSession.name;
+    this.endSessionError?.classList.add('hidden');
+    if (this.endSessionConfirmBtn) this.endSessionConfirmBtn.disabled = false;
+
+    const updateDuration = () => {
+      if (this.endSessionDuration && activeSession.start_time) {
+        this.endSessionDuration.textContent = formatDuration(Date.now() / 1000 - activeSession.start_time);
+      }
+    };
+    updateDuration();
+    clearInterval(this.endSessionDurationInterval);
+    this.endSessionDurationInterval = setInterval(updateDuration, 1000);
+
+    this.endSessionModal?.classList.remove('hidden');
+  }
+
+  hideEndSessionModal() {
+    clearInterval(this.endSessionDurationInterval);
+    this.endSessionModal?.classList.add('hidden');
+  }
+
+  async handleConfirmEndSession() {
+    const activeSession = state.activeSession;
+    if (!activeSession?.is_active) {
+      this.hideEndSessionModal();
+      return;
+    }
+
+    if (this.endSessionConfirmBtn) this.endSessionConfirmBtn.disabled = true;
+
+    try {
+      const endedSession = await api.endSession(activeSession.id);
+      state.handleWebSocketMessage({ type: 'session_ended', session: endedSession });
+      this.hideEndSessionModal();
+    } catch (err) {
+      if (this.endSessionError) {
+        this.endSessionError.textContent = `Impossible de terminer le match : ${err.message}`;
+        this.endSessionError.classList.remove('hidden');
+      }
+    } finally {
+      if (this.endSessionConfirmBtn) this.endSessionConfirmBtn.disabled = false;
     }
   }
 

@@ -8,6 +8,10 @@ __pycache__/
 
 # Local satellite data database
 data.db
+data.db*
+
+# Application & user-action logs (persisted on the Pi, downloadable via /api/logs/export)
+logs/
 
 # OS
 .DS_Store

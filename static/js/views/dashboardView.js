@@ -10,7 +10,10 @@ import {
   getDeviceDisplayName,
   getDeviceThreshold,
   formatDateTime,
+  formatDuration,
   getBatteryStatus,
+  getRssiStatus,
+  getDeviceLinkState,
   escapeHtml,
   progressBar,
 } from '../utils.js';
@@ -31,6 +34,9 @@ export class DashboardView {
     this.globalSessionSelect = document.getElementById('global-session-select');
     this.newSessionBtn = document.getElementById('new-session-btn');
     this.endSessionBtn = document.getElementById('end-session-btn');
+    this.matchStatusCard = document.getElementById('match-status-card');
+    this.matchStatusLabel = document.getElementById('match-status-label');
+    this.matchStatusTimer = document.getElementById('match-status-timer');
 
     // Historical Dashboard Banner elements
     this.dashHistoryBanner = document.getElementById('dashboard-history-banner');
@@ -155,11 +161,12 @@ export class DashboardView {
   }
 
   renderSessionSelector() {
+    this.renderMatchStatus();
+
     if (!this.globalSessionSelect) return;
     const sessions = state.sessions || [];
-      if (this.endSessionBtn) this.endSessionBtn.disabled = !state.activeSession?.is_active;
     if (sessions.length === 0) {
-      this.globalSessionSelect.innerHTML = '<option value="">Aucune session</option>';
+      this.globalSessionSelect.innerHTML = '<option value="">Aucun match</option>';
       return;
     }
 
@@ -187,6 +194,35 @@ export class DashboardView {
         if (this.dashHistorySessionDate) this.dashHistorySessionDate.textContent = formatDateTime(currentSession.start_time);
       }
     }
+  }
+
+  /** Single source of truth for "is a match live right now?" — decoupled from whatever session the user is browsing. */
+  renderMatchStatus() {
+    const active = state.activeSession?.is_active ? state.activeSession : null;
+
+    if (this.endSessionBtn) this.endSessionBtn.classList.toggle('hidden', !active);
+    if (this.newSessionBtn) {
+      this.newSessionBtn.classList.toggle('btn-primary', !active);
+      this.newSessionBtn.classList.toggle('btn-primary-soft', Boolean(active));
+    }
+
+    if (this.matchStatusCard) this.matchStatusCard.classList.toggle('is-live', Boolean(active));
+    if (this.matchStatusLabel) {
+      this.matchStatusLabel.textContent = active ? active.name : 'Aucun match en cours';
+    }
+    if (this.matchStatusTimer) {
+      this.matchStatusTimer.classList.toggle('hidden', !active);
+    }
+    this.tickMatchTimer();
+  }
+
+  /** Called every second by the app ticker to keep the live match duration current. */
+  tickMatchTimer() {
+    if (!this.matchStatusTimer) return;
+    const active = state.activeSession?.is_active ? state.activeSession : null;
+    if (!active || !active.start_time) return;
+    const elapsed = Date.now() / 1000 - active.start_time;
+    this.matchStatusTimer.textContent = formatDuration(elapsed);
   }
 
   updateKpiSummary() {
@@ -240,11 +276,13 @@ export class DashboardView {
 
   createDeviceRowHtml(d) {
     const isConnected = Boolean(d.connected);
+    const link = getDeviceLinkState(d);
     const hasAlert = Boolean(d.impact_alert);
     const threshold = getDeviceThreshold(d);
     const mag = d.aX !== undefined ? calcAccelMagnitude(d.aX, d.aY, d.aZ) : null;
     const temp = d.temp;
     const battery = getBatteryStatus(d.battery_percentage);
+    const rssi = getRssiStatus(d.rssi);
     const displayName = getDeviceDisplayName(d);
     const mac = d.device_id;
     const lastSeen = formatDateTime(d.last_update);
@@ -253,11 +291,16 @@ export class DashboardView {
       <tr class="device-row ${hasAlert ? 'impact-row' : ''} ${!isConnected ? 'disconnected-row' : ''}" data-device-id="${escapeHtml(mac)}">
         <!-- Status -->
         <td class="col-status" data-label="Statut">
-          <div class="status-indicator-wrapper" title="${isConnected ? 'Connecté' : 'Déconnecté'}">
-            <span class="status-dot ${isConnected ? 'dot-online' : 'dot-offline'}"></span>
-            <span class="status-text ${isConnected ? 'text-online' : 'text-offline'}">
-              ${isConnected ? 'Connecté' : 'Hors ligne'}
+          <div class="status-indicator-wrapper" title="${link.label}">
+            <span class="status-dot ${link.dotClass}"></span>
+            <span class="status-text ${link.textClass}" data-state="${link.state}">
+              <i data-lucide="${link.icon}" class="${link.spin ? 'icon-spin' : ''}" style="width:13px;height:13px;"></i>
+              ${link.label}
             </span>
+          </div>
+          <div class="rssi-badge rssi-${rssi.level}" title="Signal BLE : ${rssi.text}">
+            <i data-lucide="${rssi.icon}" style="color: ${rssi.color}"></i>
+            <span class="rssi-label">${rssi.label}</span>
           </div>
         </td>
 
@@ -333,11 +376,13 @@ export class DashboardView {
 
   updateRow(row, d) {
     const isConnected = Boolean(d.connected);
+    const link = getDeviceLinkState(d);
     const hasAlert = Boolean(d.impact_alert);
     const threshold = getDeviceThreshold(d);
     const mag = d.aX !== undefined ? calcAccelMagnitude(d.aX, d.aY, d.aZ) : null;
     const temp = d.temp;
     const battery = getBatteryStatus(d.battery_percentage);
+    const rssi = getRssiStatus(d.rssi);
     const displayName = getDeviceDisplayName(d);
     const lastSeen = formatDateTime(d.last_update);
 
@@ -346,13 +391,18 @@ export class DashboardView {
     row.classList.toggle('disconnected-row', !isConnected);
 
     // Status
+    const wrapper = row.querySelector('.status-indicator-wrapper');
+    if (wrapper) wrapper.title = link.label;
+
     const dot = row.querySelector('.status-dot');
-    if (dot) dot.className = `status-dot ${isConnected ? 'dot-online' : 'dot-offline'}`;
+    if (dot) dot.className = `status-dot ${link.dotClass}`;
 
     const statusText = row.querySelector('.status-text');
-    if (statusText) {
-      statusText.className = `status-text ${isConnected ? 'text-online' : 'text-offline'}`;
-      statusText.textContent = isConnected ? 'Connecté' : 'Hors ligne';
+    if (statusText && statusText.dataset.state !== link.state) {
+      statusText.dataset.state = link.state;
+      statusText.className = `status-text ${link.textClass}`;
+      statusText.innerHTML = `<i data-lucide="${link.icon}" class="${link.spin ? 'icon-spin' : ''}" style="width:13px;height:13px;"></i> ${link.label}`;
+      if (window.lucide) window.lucide.createIcons();
     }
 
     // Player Avatar & Name
@@ -421,6 +471,21 @@ export class DashboardView {
     const batteryCell = row.querySelector('.col-battery .battery-cell');
     if (batteryCell) {
       batteryCell.title = d.battery_voltage !== undefined ? `${fmt(d.battery_voltage, 2)} V` : '';
+    }
+
+    // RSSI
+    const rssiBadge = row.querySelector('.rssi-badge');
+    if (rssiBadge) {
+      if (rssiBadge.className !== `rssi-badge rssi-${rssi.level}`) {
+        rssiBadge.className = `rssi-badge rssi-${rssi.level}`;
+      }
+      rssiBadge.title = `Signal BLE : ${rssi.text}`;
+      const rssiIcon = rssiBadge.querySelector('[data-lucide], svg');
+      if (rssiIcon) rssiIcon.style.color = rssi.color;
+      const rssiLabel = rssiBadge.querySelector('.rssi-label');
+      if (rssiLabel && rssiLabel.textContent !== rssi.label) {
+        rssiLabel.textContent = rssi.label;
+      }
     }
 
     // Last seen

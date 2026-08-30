@@ -69,6 +69,9 @@ class StateStore {
   }
 
   setSelectedSessionId(sessionId) {
+    // No-op guard: prevents redundant reloads and re-entrant notify loops when a view both
+    // reacts to 'selected_session_changed' and calls this setter directly with the same id.
+    if (this.selectedSessionId === sessionId) return;
     this.selectedSessionId = sessionId;
     this.notify('selected_session_changed', {
       selectedSessionId: this.selectedSessionId,
@@ -170,6 +173,7 @@ class StateStore {
       device_id: id,
       device_name: id,
       connected: false,
+      state: 'disconnected',
       impact_threshold: CONFIG.DEFAULT_IMPACT_THRESHOLD,
     };
 
@@ -181,6 +185,7 @@ class StateStore {
 
     if (msg.type === 'status') {
       updated.connected = msg.connected;
+      updated.state = msg.state || (msg.connected ? 'connected' : 'disconnected');
     } else if (msg.type === 'imu') {
       Object.assign(updated, {
         aX: msg.aX,
@@ -196,6 +201,8 @@ class StateStore {
     } else if (msg.type === 'battery') {
       updated.battery_voltage = msg.voltage;
       updated.battery_percentage = msg.percentage;
+    } else if (msg.type === 'rssi') {
+      updated.rssi = msg.rssi;
     } else if (msg.type === 'label') {
       updated.label_name = msg.label_name;
       updated.label_number = msg.label_number;

@@ -61,7 +61,7 @@
                 "isDefault": true
             },
             "dependsOn": [
-                "Install dependencies"
+                //"Install dependencies"
             ]
         }
     ]

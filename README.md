@@ -174,6 +174,16 @@ sudo ./scripts/update.sh
 
 > `secrets.yaml` étant ignoré par Git, il n’est pas écrasé par `git reset --hard origin/main`.
 
+## Récupérer les logs une fois le Pi sur site
+
+Une fois déployé sur site (sans accès SSH), l'app conserve :
+
+- les logs applicatifs (BLE, erreurs, etc.) dans `logs/app.log` (rotation automatique, 5 fichiers de 2 Mo max)
+- un journal des actions utilisateur (clics/appels API : création de session, label, seuil d'impact, mise à jour…) dans `logs/user_actions.log`
+- la base `data.db` (historique des sessions/mesures)
+
+Pour les récupérer sans accès distant, n'importe qui connecté au dashboard peut cliquer sur **« Télécharger les journaux »** dans le pied de page : cela télécharge un fichier `.zip` (logs + base de données) via `GET /api/logs/export`, à renvoyer par mail/USB pour analyse de votre côté.
+
 ## Développement local
 
 Pour tester localement sur un ordinateur (Windows/macOS/Linux), sans point d’accès Raspberry Pi :

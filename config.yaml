@@ -1,12 +1,21 @@
 # Configuration for the BLE central / web dashboard app
 
 ble:
+  # Label shown in the dashboard for every satellite.
   device_name: "IMU Satellite"
+  # Names actually broadcast by the firmwares; satellites advertising the IMU service UUID match too.
+  advertised_names:
+    - "IMU Capture"
+    - "IMU Satellite"
   imu_service_uuid: "2a6f0001-8a7d-4e8b-9c7d-4b2a0b9c0001"
   imu_data_char_uuid: "2a6f0002-8a7d-4e8b-9c7d-4b2a0b9c0001"
   battery_data_char_uuid: "2a6f0003-8a7d-4e8b-9c7d-4b2a0b9c0001"
   scan_timeout_s: 10
-  reconnect_delay_s: 3
+  reconnect_delay_s: 1
+  # Max wait for a fresh advertisement before retrying a connection (BlueZ drops silent devices).
+  rediscover_timeout_s: 10
+  # How often to log what the adapter sees while no satellite is found.
+  scan_heartbeat_s: 30
 
 web:
   host: "0.0.0.0"

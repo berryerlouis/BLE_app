@@ -9,7 +9,7 @@ import { ChartManager } from './charts.js';
 import { ModalView } from './views/modalView.js';
 import { DashboardView } from './views/dashboardView.js';
 import { PlayerView } from './views/playerView.js';
-import { progressBar } from './utils.js';
+import { progressBar, sessionLoader } from './utils.js';
 
 class App {
   constructor() {
@@ -20,7 +20,7 @@ class App {
       (deviceId) => this.showPlayerView(deviceId),
       (deviceId) => this.modalView.showLabelModal(deviceId, 'edit'),
       () => this.modalView.showSessionModal(),
-      () => this.endActiveSession(),
+      () => this.modalView.showEndSessionModal(),
       (sessionId) => this.switchSession(sessionId)
     );
 
@@ -63,6 +63,9 @@ class App {
     // 5. Periodic update check
     this.checkForUpdates();
     setInterval(() => this.checkForUpdates(), CONFIG.UPDATE_CHECK_INTERVAL_MS);
+
+    // 5b. Live match duration ticker (updates the header status card every second)
+    setInterval(() => this.dashboardView.tickMatchTimer(), 1000);
 
     // 6. Show initial dashboard view
     this.showDashboardView();
@@ -112,44 +115,33 @@ class App {
   }
 
   async switchSession(sessionId) {
+    const session = state.sessions.find((s) => s.id === sessionId);
+    const label = session ? `Chargement de « ${session.name} »...` : 'Chargement de la session...';
+
     progressBar.start();
-    state.setSelectedSessionId(sessionId);
-    progressBar.set(40);
+    progressBar.set(30);
 
     if (state.currentDeviceId) {
-      await this.playerView.open(state.currentDeviceId, sessionId);
+      // state.setSelectedSessionId below triggers 'selected_session_changed', which reopens the
+      // player view for us — avoid fetching the device log twice.
+      state.setSelectedSessionId(sessionId);
     } else {
+      sessionLoader.show(label);
+      sessionLoader.update(25);
+      state.setSelectedSessionId(sessionId);
       try {
+        sessionLoader.update(50, `${label} Récupération des satellites...`);
         const deviceList = await api.fetchDevices(sessionId);
         progressBar.set(80);
+        sessionLoader.update(85, `${label} Affichage...`);
         state.setDevices(deviceList);
         this.dashboardView.render();
       } catch (err) {
         console.error('Failed to load session devices:', err);
       }
+      sessionLoader.hide();
     }
     progressBar.complete();
-  }
-
-  async endActiveSession() {
-    const activeSession = state.activeSession;
-    if (!activeSession?.is_active) return;
-
-    const confirmed = window.confirm(`Terminer et archiver « ${activeSession.name} » ?`);
-    if (!confirmed) return;
-
-    const endButton = this.dashboardView.endSessionBtn;
-    if (endButton) endButton.disabled = true;
-
-    try {
-      const endedSession = await api.endSession(activeSession.id);
-      state.handleWebSocketMessage({ type: 'session_ended', session: endedSession });
-    } catch (err) {
-      console.error('Failed to end active session:', err);
-      window.alert(`Impossible de terminer le match : ${err.message}`);
-    } finally {
-      if (endButton) endButton.disabled = false;
-    }
   }
 
   showDashboardView() {

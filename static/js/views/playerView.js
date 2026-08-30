@@ -1,7 +1,6 @@
 /**
  * Player Detail View (Second Page)
  */
-import { CONFIG } from '../config.js';
 import { api } from '../api.js';
 import { state } from '../state.js';
 import {
@@ -11,8 +10,11 @@ import {
   getDeviceThreshold,
   formatDateTime,
   getBatteryStatus,
+  getRssiStatus,
+  getDeviceLinkState,
   escapeHtml,
   progressBar,
+  sessionLoader,
 } from '../utils.js';
 
 export class PlayerView {
@@ -30,6 +32,9 @@ export class PlayerView {
     this.playerMac = document.getElementById('detail-player-mac');
     this.playerStatusDot = document.getElementById('detail-status-dot');
     this.playerStatusText = document.getElementById('detail-status-text');
+    this.rssiIcon = document.getElementById('detail-rssi-icon');
+    this.rssiLabel = document.getElementById('detail-rssi-label');
+    this.rssiBadge = document.getElementById('detail-rssi-badge');
     this.editLabelBtn = document.getElementById('edit-label-btn');
 
     // Session Switcher & Historical Replay
@@ -61,11 +66,6 @@ export class PlayerView {
     this.tempToggle = document.getElementById('temp-chart-toggle');
     this.gyroChartCard = document.getElementById('gyro-chart-card');
     this.tempChartCard = document.getElementById('temp-chart-card');
-    this.logSortSelect = document.getElementById('log-sort-select');
-    this.logFilterSelect = document.getElementById('log-filter-select');
-    this.logSearchInput = document.getElementById('log-search-input');
-    this.logClearBtn = document.getElementById('log-clear-btn');
-    this.logPanel = document.getElementById('log-panel');
 
     this.chartManager.setOnUserNavigated((userNavigated) => {
       if (!state.isViewingHistorical() && state.realtimeEnabled) {
@@ -90,19 +90,14 @@ export class PlayerView {
     this.playerSessionSelect?.addEventListener('change', (e) => {
       const sessId = Number(e.target.value);
       if (sessId) {
+        // Triggers 'selected_session_changed', which reopens this view via app.js — don't fetch twice.
         state.setSelectedSessionId(sessId);
-        if (state.currentDeviceId) {
-          this.open(state.currentDeviceId, sessId);
-        }
       }
     });
 
     this.returnLiveBtn?.addEventListener('click', () => {
       if (state.activeSession) {
         state.setSelectedSessionId(state.activeSession.id);
-        if (state.currentDeviceId) {
-          this.open(state.currentDeviceId, state.activeSession.id);
-        }
       }
     });
 
@@ -138,25 +133,6 @@ export class PlayerView {
     this.tempToggle?.addEventListener('change', (e) => {
       this.tempChartCard?.classList.toggle('hidden', !e.target.checked);
       if (e.target.checked) this.chartManager.resize();
-    });
-
-    this.logSortSelect?.addEventListener('change', (e) => {
-      state.logSortOrder = e.target.value;
-      this.renderLogs();
-    });
-
-    this.logFilterSelect?.addEventListener('change', (e) => {
-      state.logFilterType = e.target.value;
-      this.renderLogs();
-    });
-
-    this.logSearchInput?.addEventListener('input', () => {
-      this.renderLogs();
-    });
-
-    this.logClearBtn?.addEventListener('click', () => {
-      state.currentDeviceLog = [];
-      this.renderLogs();
     });
 
     this.impactResetBtn?.addEventListener('click', () => this.handleResetImpact());
@@ -212,6 +188,13 @@ export class PlayerView {
     const currentSessionId = state.selectedSessionId || state.activeSession?.id;
     const isHistorical = state.isViewingHistorical();
     const currentSession = state.getSelectedSession();
+    const playerName = getDeviceDisplayName(state.devices.get(deviceId));
+    const loadLabel = currentSession
+      ? `Chargement de « ${currentSession.name} » — ${playerName}...`
+      : `Chargement des données de ${playerName}...`;
+
+    sessionLoader.show(loadLabel);
+    sessionLoader.update(15);
 
     state.setCurrentDevice(deviceId, []);
     this.chartManager.clear();
@@ -234,26 +217,22 @@ export class PlayerView {
       state.realtimeEnabled = !isHistorical;
     }
 
-    if (this.logPanel) {
-      this.logPanel.innerHTML = '<div class="log-loading"><i data-lucide="loader" class="animate-spin"></i> Chargement de la télémétrie du match...</div>';
-      if (window.lucide) window.lucide.createIcons({ root: this.logPanel });
-    }
-
     this.container?.classList.remove('hidden');
     progressBar.set(35);
+    sessionLoader.update(35, `${loadLabel} Récupération du journal...`);
 
     try {
       const history = await api.fetchDeviceLog(deviceId, currentSessionId);
       progressBar.set(70);
+      sessionLoader.update(70, `${loadLabel} Construction des graphiques...`);
       state.currentDeviceLog = Array.isArray(history) ? history : [];
       this.rebuildAll();
       progressBar.complete();
+      sessionLoader.hide();
     } catch (err) {
       console.error('Failed to load player history for session:', err);
       progressBar.complete();
-      if (this.logPanel) {
-        this.logPanel.innerHTML = '<div class="log-empty text-danger">Impossible de charger l\'historique de cette session</div>';
-      }
+      sessionLoader.hide();
     }
   }
 
@@ -261,7 +240,6 @@ export class PlayerView {
     this.renderHeader();
     this.renderKpis();
     this.renderImpactState();
-    this.renderLogs();
     this.rebuildCharts();
   }
 
@@ -277,18 +255,31 @@ export class PlayerView {
     if (!dev) return;
 
     const displayName = getDeviceDisplayName(dev);
-    const isConnected = Boolean(dev.connected) && !state.isViewingHistorical();
+    const isHistorical = state.isViewingHistorical();
+    const link = getDeviceLinkState(dev);
 
     if (this.playerTitle) this.playerTitle.textContent = displayName;
     if (this.playerMac) this.playerMac.textContent = dev.device_id;
 
     if (this.playerStatusDot) {
-      this.playerStatusDot.className = `status-dot ${isConnected ? 'dot-online' : 'dot-offline'}`;
+      this.playerStatusDot.className = `status-dot ${isHistorical ? 'dot-offline' : link.dotClass}`;
     }
     if (this.playerStatusText) {
-      this.playerStatusText.textContent = isConnected ? 'Connecté' : (state.isViewingHistorical() ? 'Archivé' : 'Hors ligne');
-      this.playerStatusText.className = `status-text ${isConnected ? 'text-online' : 'text-offline'}`;
+      const label = isHistorical ? 'Archivé' : link.label;
+      this.playerStatusText.innerHTML = isHistorical
+        ? label
+        : `<i data-lucide="${link.icon}" class="${link.spin ? 'icon-spin' : ''}" style="width:14px;height:14px;"></i> ${label}`;
+      this.playerStatusText.className = `status-text ${isHistorical ? 'text-offline' : link.textClass}`;
+      if (window.lucide) window.lucide.createIcons();
     }
+
+    const rssi = getRssiStatus(dev.rssi);
+    if (this.rssiBadge) {
+      this.rssiBadge.className = `rssi-badge rssi-${rssi.level}`;
+      this.rssiBadge.title = `Signal BLE : ${rssi.text}`;
+    }
+    if (this.rssiIcon) this.rssiIcon.style.color = rssi.color;
+    if (this.rssiLabel) this.rssiLabel.textContent = rssi.label;
 
     if (this.thresholdValue) {
       this.thresholdValue.textContent = `${fmt(getDeviceThreshold(dev), 1)}`;
@@ -393,88 +384,6 @@ export class PlayerView {
     }
   }
 
-  formatLogMessage(msg) {
-    const t = formatDateTime(msg.timestamp);
-    let typeBadge = '';
-    let details = '';
-
-    switch (msg.type) {
-      case 'imu': {
-        const mag = calcAccelMagnitude(msg.aX, msg.aY, msg.aZ);
-        typeBadge = '<span class="log-badge badge-imu">IMU</span>';
-        details = `|a|=<strong>${fmt(mag, 2)}g</strong> &middot; aX=${fmt(msg.aX)} aY=${fmt(msg.aY)} aZ=${fmt(msg.aZ)} &middot; gX=${fmt(msg.gX)} gY=${fmt(msg.gY)} gZ=${fmt(msg.gZ)} &middot; ${fmt(msg.temp, 1)}°C`;
-        break;
-      }
-      case 'battery':
-        typeBadge = '<span class="log-badge badge-battery">BATTERIE</span>';
-        details = `Niveau: <strong>${msg.percentage}%</strong> &middot; Tension: ${fmt(msg.voltage, 2)}V`;
-        break;
-      case 'status':
-        typeBadge = `<span class="log-badge ${msg.connected ? 'badge-online' : 'badge-offline'}">STATUT</span>`;
-        details = `Satellite <strong>${msg.connected ? 'connecté' : 'déconnecté'}</strong>`;
-        break;
-      case 'label':
-        typeBadge = '<span class="log-badge badge-label">JOUEUR</span>';
-        details = `Nom: <strong>${escapeHtml(msg.label_name)} (#${msg.label_number})</strong>`;
-        break;
-      case 'threshold':
-        typeBadge = '<span class="log-badge badge-threshold">SEUIL</span>';
-        details = `Nouveau seuil de commotion: <strong>${fmt(msg.impact_threshold, 1)}g</strong>`;
-        break;
-      case 'impact':
-        typeBadge = '<span class="log-badge badge-impact pulse-danger">COMMOTION</span>';
-        details = `ALERTE CHOC : |a|=<strong>${fmt(msg.impact_value, 2)}g</strong> (seuil ${fmt(msg.impact_threshold, 1)}g)`;
-        break;
-      case 'impact_reset':
-        typeBadge = '<span class="log-badge badge-reset">ACQUITTEMENT</span>';
-        details = `Alerte commotion réinitialisée / acquittée`;
-        break;
-      default:
-        typeBadge = '<span class="log-badge">INFO</span>';
-        details = escapeHtml(JSON.stringify(msg));
-    }
-
-    return `
-      <div class="log-item log-type-${msg.type}">
-        <span class="log-time">${t}</span>
-        ${typeBadge}
-        <span class="log-content">${details}</span>
-      </div>
-    `;
-  }
-
-  renderLogs() {
-    if (!this.logPanel) return;
-
-    let logs = [...state.currentDeviceLog];
-    const filterType = state.logFilterType;
-    const query = (this.logSearchInput?.value || '').toLowerCase().trim();
-
-    // Filter by type
-    if (filterType !== 'all') {
-      logs = logs.filter((m) => m.type === filterType);
-    }
-
-    // Filter by search text
-    if (query) {
-      logs = logs.filter((m) => JSON.stringify(m).toLowerCase().includes(query));
-    }
-
-    // Sort
-    if (state.logSortOrder === 'desc') {
-      logs.reverse();
-    }
-
-    if (logs.length === 0) {
-      this.logPanel.innerHTML = '<div class="log-empty">Aucun événement enregistré pour ce filtre</div>';
-      return;
-    }
-
-    // Render bounded slice for high performance
-    const renderSlice = logs.slice(0, CONFIG.MAX_DOM_LOG_LINES);
-    this.logPanel.innerHTML = renderSlice.map((m) => this.formatLogMessage(m)).join('');
-  }
-
   handleLiveMessage(msg) {
     if (msg.device_id !== state.currentDeviceId) return;
 
@@ -490,31 +399,6 @@ export class PlayerView {
       this.chartManager.feedImuData(msg, getDeviceThreshold(dev));
     } else if (msg.type === 'threshold') {
       this.chartManager.updateThreshold(msg.impact_threshold);
-    }
-
-    // Append log line with DOM node count limit
-    if (this.logPanel) {
-      if (state.logFilterType === 'all' || state.logFilterType === msg.type) {
-        const itemHtml = this.formatLogMessage(msg);
-        const temp = document.createElement('div');
-        temp.innerHTML = itemHtml;
-        const line = temp.firstElementChild;
-        
-        if (state.logSortOrder === 'desc') {
-          const emptyPlaceholder = this.logPanel.querySelector('.log-empty');
-          if (emptyPlaceholder) emptyPlaceholder.remove();
-          this.logPanel.insertBefore(line, this.logPanel.firstChild);
-          while (this.logPanel.childElementCount > CONFIG.MAX_DOM_LOG_LINES) {
-            this.logPanel.removeChild(this.logPanel.lastChild);
-          }
-        } else {
-          this.logPanel.appendChild(line);
-          while (this.logPanel.childElementCount > CONFIG.MAX_DOM_LOG_LINES) {
-            this.logPanel.removeChild(this.logPanel.firstChild);
-          }
-          this.logPanel.scrollTop = this.logPanel.scrollHeight;
-        }
-      }
     }
   }
 
