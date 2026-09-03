@@ -129,10 +129,10 @@ async def export_logs_handler(request: web.Request) -> web.StreamResponse:
 
 
 async def _load_persisted_state(app: web.Application) -> None:
-    active_session = await app["db"].get_active_session()
-    app["active_session"] = active_session
+    await app["db"].end_active_sessions()
+    app["active_session"] = None
 
-    devices, logs = await app["db"].load_all(session_id=active_session["id"])
+    devices, logs = await app["db"].load_all()
     # No BLE link exists yet right after a (re)start: persisted "connected" flags are stale
     # (the process may have crashed/restarted mid-connection), so force everyone offline until
     # the scanner actually re-establishes a live session for each satellite.
@@ -144,9 +144,7 @@ async def _load_persisted_state(app: web.Application) -> None:
     for device_id, entries in logs.items():
         app["logs"][device_id] = deque(entries, maxlen=MAX_LOG_ENTRIES_PER_DEVICE)
     log.info(
-        "Loaded active session #%d ('%s') with %d device(s) from database",
-        active_session["id"],
-        active_session["name"],
+        "Loaded %d device(s) from database without an active session",
         len(devices),
     )
 
@@ -298,9 +296,6 @@ async def list_sessions_handler(request: web.Request) -> web.Response:
 
 async def active_session_handler(request: web.Request) -> web.Response:
     active = request.app.get("active_session")
-    if not active:
-        active = await request.app["db"].get_active_session()
-        request.app["active_session"] = active
     return web.json_response(active)
 
 
@@ -431,7 +426,8 @@ async def delete_session_handler(request: web.Request) -> web.Response:
 
     # Refresh active session
     request.app["active_session"] = await request.app["db"].get_active_session()
-    _, logs = await request.app["db"].load_all(session_id=request.app["active_session"]["id"])
+    active_session = request.app["active_session"]
+    _, logs = await request.app["db"].load_all(session_id=active_session["id"] if active_session else None)
     request.app["logs"] = {}
     for device_id, entries in logs.items():
         request.app["logs"][device_id] = deque(entries, maxlen=MAX_LOG_ENTRIES_PER_DEVICE)

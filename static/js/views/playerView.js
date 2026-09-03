@@ -38,7 +38,7 @@ export class PlayerView {
     this.editLabelBtn = document.getElementById('edit-label-btn');
 
     // Session Switcher & Historical Replay
-    this.playerSessionSelect = document.getElementById('player-session-select');
+    //this.playerSessionSelect = document.getElementById('player-session-select');
     this.historyBanner = document.getElementById('player-history-banner');
     this.historySessionName = document.getElementById('history-session-name');
     this.historySessionDate = document.getElementById('history-session-date');
@@ -87,13 +87,13 @@ export class PlayerView {
       }
     });
 
-    this.playerSessionSelect?.addEventListener('change', (e) => {
-      const sessId = Number(e.target.value);
-      if (sessId) {
-        // Triggers 'selected_session_changed', which reopens this view via app.js — don't fetch twice.
-        state.setSelectedSessionId(sessId);
-      }
-    });
+    // this.playerSessionSelect?.addEventListener('change', (e) => {
+    //   const sessId = Number(e.target.value);
+    //   if (sessId) {
+    //     // Triggers 'selected_session_changed', which reopens this view via app.js — don't fetch twice.
+    //     state.setSelectedSessionId(sessId);
+    //   }
+    // });
 
     this.returnLiveBtn?.addEventListener('click', () => {
       if (state.activeSession) {
@@ -162,21 +162,21 @@ export class PlayerView {
   }
 
   renderSessionOptions() {
-    if (!this.playerSessionSelect) return;
-    const sessions = state.sessions || [];
-    const currentId = state.selectedSessionId || state.activeSession?.id;
+    // if (!this.playerSessionSelect) return;
+    // const sessions = state.sessions || [];
+    // const currentId = state.selectedSessionId || state.activeSession?.id;
 
-    this.playerSessionSelect.innerHTML = sessions.map((s) => {
-      const isLive = Boolean(s.is_active);
-      const isSelected = s.id === currentId;
-      const dateLabel = formatDateTime(s.start_time);
-      const badge = isLive ? '🔴 En direct' : '📅 Passé';
-      return `
-        <option value="${s.id}" ${isSelected ? 'selected' : ''}>
-          ${badge} : ${escapeHtml(s.name)} (${dateLabel})
-        </option>
-      `;
-    }).join('');
+    // this.playerSessionSelect.innerHTML = sessions.map((s) => {
+    //   const isLive = Boolean(s.is_active);
+    //   const isSelected = s.id === currentId;
+    //   const dateLabel = formatDateTime(s.start_time);
+    //   const badge = isLive ? '🔴 En direct' : '📅 Passé';
+    //   return `
+    //     <option value="${s.id}" ${isSelected ? 'selected' : ''}>
+    //       ${badge} : ${escapeHtml(s.name)} (${dateLabel})
+    //     </option>
+    //   `;
+    // }).join('');
   }
 
   async open(deviceId, sessionId = null) {

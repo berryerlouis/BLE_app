@@ -98,28 +98,15 @@ class Database:
             self._backfill_label_columns()
             self._backfill_impact_columns()
             self._backfill_log_columns()
-            self._ensure_default_session_sync()
 
-    def _ensure_default_session_sync(self) -> dict:
-        """Ensure at least one active session exists."""
+    def _get_active_session_sync(self) -> dict | None:
+        """Return the current active session, if one exists."""
         row = self._conn.execute("SELECT * FROM sessions WHERE is_active = 1 ORDER BY id DESC LIMIT 1").fetchone()
-        if row is None:
-            any_session = self._conn.execute("SELECT * FROM sessions ORDER BY id DESC LIMIT 1").fetchone()
-            if any_session is None:
-                now = time.time()
-                cur = self._conn.execute(
-                    "INSERT INTO sessions (name, start_time, is_active, created_at, notes) VALUES (?, ?, 1, ?, ?)",
-                    ("Match 1 - Session en cours", now, now, "Session initiale créée automatiquement"),
-                )
-                session_id = cur.lastrowid
-                self._conn.commit()
-                row = self._conn.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
-            else:
-                self._conn.execute("UPDATE sessions SET is_active = 1 WHERE id = ?", (any_session["id"],))
-                self._conn.commit()
-                row = self._conn.execute("SELECT * FROM sessions WHERE id = ?", (any_session["id"],)).fetchone()
-
-        return dict(row)
+        if not row:
+            return None
+        result = dict(row)
+        result["is_active"] = bool(result["is_active"])
+        return result
 
     def _backfill_log_columns(self) -> None:
         """One-time migration: populate session_id, msg_type and mag from payload for older databases."""
@@ -193,12 +180,19 @@ class Database:
     # Session Management Methods
     # =========================================================================
 
-    async def get_active_session(self) -> dict:
+    async def get_active_session(self) -> dict | None:
         return await asyncio.get_running_loop().run_in_executor(None, self._get_active_session_sync)
 
-    def _get_active_session_sync(self) -> dict:
+    async def end_active_sessions(self) -> None:
+        await asyncio.get_running_loop().run_in_executor(None, self._end_active_sessions_sync)
+
+    def _end_active_sessions_sync(self) -> None:
         with self._lock:
-            return self._ensure_default_session_sync()
+            self._conn.execute(
+                "UPDATE sessions SET is_active = 0, end_time = COALESCE(end_time, ?) WHERE is_active = 1",
+                (time.time(),),
+            )
+            self._conn.commit()
 
     async def list_sessions(self) -> list[dict]:
         return await asyncio.get_running_loop().run_in_executor(None, self._list_sessions_sync)
@@ -333,8 +327,6 @@ class Database:
             self._conn.execute("DELETE FROM logs WHERE session_id = ?", (session_id,))
             self._conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
             self._conn.commit()
-            if was_active:
-                self._ensure_default_session_sync()
             return True
 
     # =========================================================================
@@ -346,9 +338,6 @@ class Database:
 
     def _load_all_sync(self, session_id: int | None = None) -> tuple[dict, dict]:
         with self._lock:
-            active_session = self._ensure_default_session_sync()
-            target_session_id = session_id if session_id is not None else active_session["id"]
-
             devices = {}
             for row in self._conn.execute(
                 "SELECT device_id, summary, label_name, label_number, impact_threshold, impact_alert FROM devices"
@@ -365,9 +354,12 @@ class Database:
                 devices[row["device_id"]] = summary
 
             logs: dict[str, list[dict]] = {}
+            if session_id is None:
+                return devices, logs
+
             for row in self._conn.execute(
                 "SELECT device_id, payload FROM logs WHERE session_id = ? ORDER BY id",
-                (target_session_id,)
+                (session_id,)
             ):
                 logs.setdefault(row["device_id"], []).append(json.loads(row["payload"]))
             return devices, logs
@@ -416,7 +408,9 @@ class Database:
     def _append_log_sync(self, device_id: str, item: dict, session_id: int | None = None) -> None:
         with self._lock:
             if session_id is None:
-                active = self._ensure_default_session_sync()
+                active = self._get_active_session_sync()
+                if not active:
+                    return
                 session_id = active["id"]
 
             t, mag, temp, pct, v = self._extract_item_fields(item)
@@ -434,10 +428,13 @@ class Database:
 
     def _append_logs_batch_sync(self, entries: list[tuple[str, dict, int | None]]) -> None:
         with self._lock:
-            default_session_id = self._ensure_default_session_sync()["id"]
+            active = self._get_active_session_sync()
+            default_session_id = active["id"] if active else None
             data_to_insert = []
             for dev_id, item, session_id in entries:
                 s_id = session_id if session_id is not None else default_session_id
+                if s_id is None:
+                    continue
                 t, mag, temp, pct, v = self._extract_item_fields(item)
                 data_to_insert.append((
                     s_id,
@@ -450,6 +447,8 @@ class Database:
                     item.get("timestamp"),
                     json.dumps(item),
                 ))
+            if not data_to_insert:
+                return
             self._conn.executemany(
                 """
                 INSERT INTO logs (session_id, device_id, msg_type, mag, temp, battery_pct, battery_v, timestamp, payload) 
@@ -471,7 +470,9 @@ class Database:
     ) -> list[dict]:
         with self._lock:
             if session_id is None:
-                active = self._ensure_default_session_sync()
+                active = self._get_active_session_sync()
+                if not active:
+                    return []
                 session_id = active["id"]
 
             rows = self._conn.execute(
@@ -497,7 +498,9 @@ class Database:
     ) -> str:
         with self._lock:
             if session_id is None:
-                active = self._ensure_default_session_sync()
+                active = self._get_active_session_sync()
+                if not active:
+                    return "[]"
                 session_id = active["id"]
 
             rows = self._conn.execute(

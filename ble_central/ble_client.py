@@ -129,7 +129,7 @@ class DeviceManager:
                     log.info("%s (%s) re-advertised, reconnecting", name, address)
                 else:
                     log.info("%s (%s) silent for %ss, retrying anyway", name, address, rediscover_timeout)
-                await self._sleep(delay)
+                    await self._sleep(delay)
         finally:
             self._sessions.pop(address, None)
             self._seen_events.pop(address, None)
