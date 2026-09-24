@@ -199,6 +199,9 @@ class App {
         api.fetchDevices().catch(() => []),
       ]);
       state.setSessions(sessions, activeSession);
+      if (activeSession?.is_active) {
+        state.setSelectedSessionId(activeSession.id);
+      }
       state.setDevices(deviceList);
       this.dashboardView.render();
 

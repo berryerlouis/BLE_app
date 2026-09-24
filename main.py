@@ -74,8 +74,6 @@ async def main() -> None:
             log.info("Graceful restart requested; disconnecting BLE satellites.")
             ble_manager.stop()
             await ble_task
-        else:
-            await ble_task
     except asyncio.CancelledError:
         pass
     finally:
