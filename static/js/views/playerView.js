@@ -2,7 +2,7 @@
  * Player Detail View (Second Page)
  */
 import { api } from '../api.js';
-import { state } from '../state.js';
+import { state } from '../state.js?v=20260926';
 import {
   fmt,
   calcAccelMagnitude,
@@ -96,9 +96,7 @@ export class PlayerView {
     // });
 
     this.returnLiveBtn?.addEventListener('click', () => {
-      if (state.activeSession) {
-        state.setSelectedSessionId(state.activeSession.id);
-      }
+      state.setSelectedSessionId(null);
     });
 
     this.realtimeToggle?.addEventListener('change', (e) => {

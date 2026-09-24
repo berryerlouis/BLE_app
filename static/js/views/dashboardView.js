@@ -3,7 +3,7 @@
  */
 import { CONFIG } from '../config.js';
 import { api } from '../api.js';
-import { state } from '../state.js';
+import { state } from '../state.js?v=20260926';
 import {
   fmt,
   calcAccelMagnitude,

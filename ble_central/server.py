@@ -154,7 +154,7 @@ async def _close_db(app: web.Application) -> None:
 
 
 async def index_handler(_request: web.Request) -> web.FileResponse:
-    return web.FileResponse(STATIC_DIR / "index.html")
+    return web.FileResponse(STATIC_DIR / "index.html", headers={"Cache-Control": "no-store"})
 
 
 async def list_devices_handler(request: web.Request) -> web.Response:
