@@ -56,7 +56,7 @@ class StateStore {
     if (activeSession) {
       this.activeSession = activeSession;
     } else {
-      this.activeSession = this.sessions.find((s) => s.is_active) || this.sessions[0] || null;
+      this.activeSession = this.sessions.find((s) => s.is_active) || null;
     }
     if (!this.selectedSessionId && this.activeSession) {
       this.selectedSessionId = this.activeSession.id;
