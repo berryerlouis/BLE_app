@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
 import time
 
 from bleak import BleakClient, BleakScanner
@@ -76,8 +77,14 @@ class DeviceManager:
             log.info("Discovered satellite '%s' (%s), advertised as '%s'", display_name, device.address, name)
             self._sessions[device.address] = asyncio.create_task(self._run_session(device, display_name))
 
+        scanner_options = {"detection_callback": detection_callback}
+        adapter = self._cfg.get("adapter")
+        if adapter and sys.platform == "linux":
+            scanner_options["bluez"] = {"adapter": adapter}
+            log.info("Using Bluetooth adapter %s", adapter)
+
         log.info("Scanning continuously for satellites advertising %s...", sorted(target_names))
-        self._scanner = BleakScanner(detection_callback=detection_callback)
+        self._scanner = BleakScanner(**scanner_options)
         await self._scanner.start()
         heartbeat = asyncio.create_task(self._log_scan_heartbeat())
         try:

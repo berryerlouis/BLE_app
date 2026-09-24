@@ -112,6 +112,9 @@ journalctl -u ble-central -f
 
 Le fichier [config.yaml](config.yaml) contient les paramètres applicatifs, notamment :
 
+- `ble.adapter`: contrôleur Bluetooth utilisé sur Raspberry Pi. Configurez `hci1` pour
+  privilégier l'adaptateur USB plutôt que le module interne (`hci0`). Vérifiez les noms avec
+  `bluetoothctl list` puis redémarrez le service.
 - `ble.device_name`: nom des capteurs BLE attendus (`IMU Satellite`)
 - `ble.*_char_uuid`: UUIDs des services et caractéristiques du firmware
 - `web.host` / `web.port`: adresse d’écoute et port du serveur web

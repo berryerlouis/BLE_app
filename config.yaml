@@ -1,6 +1,9 @@
 # Configuration for the BLE central / web dashboard app
 
 ble:
+  # On Raspberry Pi, hci0 is the internal radio and hci1 is typically the USB adapter.
+  # Verify with `bluetoothctl list` after plugging in the USB adapter.
+  adapter: "hci1"
   # Label shown in the dashboard for every satellite.
   device_name: "IMU Satellite"
   # Names actually broadcast by the firmwares; satellites advertising the IMU service UUID match too.
