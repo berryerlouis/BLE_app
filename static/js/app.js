@@ -132,12 +132,27 @@ class App {
 
   async switchSession(sessionId) {
     const session = state.sessions.find((s) => s.id === sessionId);
-    const label = session ? `Chargement de « ${session.name} »...` : 'Chargement de la session...';
+    const isLive = sessionId === null;
+    const label = isLive
+      ? 'Retour au temps réel...'
+      : session ? `Chargement de « ${session.name} »...` : 'Chargement de la session...';
 
     progressBar.start();
     progressBar.set(30);
 
-    if (state.currentDeviceId) {
+    if (isLive) {
+      sessionLoader.show(label);
+      sessionLoader.update(50, `${label} Récupération des satellites...`);
+      try {
+        const deviceList = await api.fetchDevices();
+        state.setDevices(deviceList);
+        state.setSelectedSessionId(null);
+        this.dashboardView.render();
+      } catch (err) {
+        console.error('Failed to load live devices:', err);
+      }
+      sessionLoader.hide();
+    } else if (state.currentDeviceId) {
       // state.setSelectedSessionId below triggers 'selected_session_changed', which reopens the
       // player view for us — avoid fetching the device log twice.
       state.setSelectedSessionId(sessionId);
@@ -168,7 +183,7 @@ class App {
 
   showPlayerView(deviceId) {
     this.dashboardView.hide();
-    const sessionId = state.selectedSessionId || state.activeSession?.id;
+    const sessionId = state.selectedSessionId;
     this.playerView.open(deviceId, sessionId);
     window.history.replaceState(null, '', `?player=${encodeURIComponent(deviceId)}`);
   }

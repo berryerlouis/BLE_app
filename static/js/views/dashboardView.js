@@ -61,15 +61,15 @@ export class DashboardView {
   initEvents() {
     // Session change & creation
     this.globalSessionSelect?.addEventListener('change', (e) => {
-      const sessId = Number(e.target.value);
-      if (sessId && this.onSelectSession) {
+      const sessId = e.target.value ? Number(e.target.value) : null;
+      if ((sessId === null || Number.isFinite(sessId)) && this.onSelectSession) {
         this.onSelectSession(sessId);
       }
     });
 
     this.dashReturnLiveBtn?.addEventListener('click', () => {
-      if (state.activeSession && this.onSelectSession) {
-        this.onSelectSession(state.activeSession.id);
+      if (this.onSelectSession) {
+        this.onSelectSession(null);
       }
     });
 
@@ -165,23 +165,19 @@ export class DashboardView {
 
     if (!this.globalSessionSelect) return;
     const sessions = state.sessions || [];
-    if (sessions.length === 0) {
-      this.globalSessionSelect.innerHTML = '<option value="">Aucun match</option>';
-      return;
-    }
 
-    const currentSelected = state.selectedSessionId || state.activeSession?.id;
-    this.globalSessionSelect.innerHTML = sessions.map((s) => {
-      const isLive = Boolean(s.is_active);
+    const currentSelected = state.selectedSessionId;
+    this.globalSessionSelect.innerHTML = `
+      <option value="" ${currentSelected === null ? 'selected' : ''}>Temps réel</option>
+    ` + (sessions.length === 0 ? '<option value="" disabled>Aucun match archivé</option>' : sessions.map((s) => {
       const isSelected = s.id === currentSelected;
       const dateLabel = formatDateTime(s.start_time);
-      const prefix = isLive ? '🔴 DIRECT :' : '📅 MATCH :';
       return `
         <option value="${s.id}" ${isSelected ? 'selected' : ''}>
-          ${prefix} ${escapeHtml(s.name)} (${dateLabel})
+          📅 MATCH : ${escapeHtml(s.name)} (${dateLabel})
         </option>
       `;
-    }).join('');
+    }).join(''));
 
     // Historical banner state
     const isHistorical = state.isViewingHistorical();

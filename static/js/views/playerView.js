@@ -180,10 +180,10 @@ export class PlayerView {
   }
 
   async open(deviceId, sessionId = null) {
-    if (sessionId) {
+    if (sessionId !== null) {
       state.setSelectedSessionId(sessionId);
     }
-    const currentSessionId = state.selectedSessionId || state.activeSession?.id;
+    const currentSessionId = state.selectedSessionId;
     const isHistorical = state.isViewingHistorical();
     const currentSession = state.getSelectedSession();
     const playerName = getDeviceDisplayName(state.devices.get(deviceId));
@@ -214,7 +214,7 @@ export class PlayerView {
 
     this.container?.classList.remove('hidden');
 
-    // Without a selected session, the device state comes directly from the WebSocket.
+    // Without an active match, the device state comes directly from the WebSocket.
     if (!currentSessionId) {
       this.rebuildAll();
       return;

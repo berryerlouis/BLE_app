@@ -58,9 +58,6 @@ class StateStore {
     } else {
       this.activeSession = this.sessions.find((s) => s.is_active) || null;
     }
-    if (!this.selectedSessionId && this.activeSession) {
-      this.selectedSessionId = this.activeSession.id;
-    }
     this.notify('sessions_updated', {
       sessions: this.sessions,
       activeSession: this.activeSession,
@@ -81,12 +78,11 @@ class StateStore {
   }
 
   getSelectedSession() {
-    return this.sessions.find((s) => s.id === this.selectedSessionId) || this.activeSession;
+    return this.sessions.find((s) => s.id === this.selectedSessionId) || null;
   }
 
   isViewingHistorical() {
-    if (!this.selectedSessionId || !this.activeSession) return false;
-    return this.selectedSessionId !== this.activeSession.id;
+    return this.selectedSessionId !== null;
   }
 
   setDevices(deviceList) {
@@ -122,7 +118,7 @@ class StateStore {
     if (msg.type === 'session_created') {
       this.activeSession = msg.session;
       this.sessions = [msg.session, ...this.sessions.map((s) => ({ ...s, is_active: false }))];
-      this.selectedSessionId = msg.session.id;
+      this.selectedSessionId = null;
       this.clearSessionMaxG();
       this.notify('sessions_updated', {
         sessions: this.sessions,
@@ -133,7 +129,7 @@ class StateStore {
     } else if (msg.type === 'session_activated') {
       this.activeSession = msg.session;
       this.sessions = this.sessions.map((s) => ({ ...s, is_active: s.id === msg.session.id }));
-      this.selectedSessionId = msg.session.id;
+      this.selectedSessionId = null;
       this.notify('sessions_updated', {
         sessions: this.sessions,
         activeSession: this.activeSession,
@@ -145,7 +141,7 @@ class StateStore {
       if (this.activeSession?.id === msg.session.id) {
         this.activeSession = null;
       }
-      this.selectedSessionId = msg.session.id;
+      this.selectedSessionId = null;
       this.notify('sessions_updated', {
         sessions: this.sessions,
         activeSession: this.activeSession,
@@ -156,7 +152,7 @@ class StateStore {
       this.sessions = this.sessions.filter((s) => s.id !== msg.session_id);
       if (msg.active_session) this.activeSession = msg.active_session;
       if (this.selectedSessionId === msg.session_id) {
-        this.selectedSessionId = this.activeSession ? this.activeSession.id : null;
+        this.selectedSessionId = null;
       }
       this.notify('sessions_updated', {
         sessions: this.sessions,
