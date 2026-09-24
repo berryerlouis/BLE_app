@@ -145,14 +145,27 @@ class DeviceManager:
         try:
             while not self._stop.is_set():
                 self._seen_events.setdefault(address, asyncio.Event()).clear()
+                connection_failed = False
                 try:
                     await self._connect_and_stream(self._devices.get(address, device), name)
+                except asyncio.TimeoutError:
+                    connection_failed = True
+                    log.warning("Connection to %s (%s) timed out", name, address)
                 except BleakError as exc:
+                    connection_failed = True
                     log.warning("BLE error for %s (%s): %s", name, address, exc)
                 except Exception:
+                    connection_failed = True
                     log.exception("Session error for %s (%s)", name, address)
                 if self._stop.is_set():
                     break
+                if connection_failed:
+                    # Ignore advertisements received during the failed attempt and let
+                    # BlueZ release its pending connection before trying again.
+                    self._seen_events.setdefault(address, asyncio.Event()).clear()
+                    await self._sleep(delay)
+                    if self._stop.is_set():
+                        break
                 # Reconnect as soon as the satellite advertises again instead of waiting out
                 # the full delay first; only fall back to the fixed delay if it stays silent.
                 if await self._wait_for_advertisement(address, rediscover_timeout):
@@ -219,9 +232,9 @@ class DeviceManager:
         client = BleakClient(device, **client_options)
         if sys.platform == "win32":
             async with self._connect_lock:
-                await client.connect()
+                await client.connect(timeout=self._cfg.get("connect_timeout_s", 10))
         else:
-            await client.connect()
+            await client.connect(timeout=self._cfg.get("connect_timeout_s", 10))
         try:
             self._emit_status(address, name, "connected")
             log.info("Connected to %s. Subscribing to notifications...", address)

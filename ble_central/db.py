@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import sqlite3
 import threading
 import time
@@ -428,16 +429,13 @@ class Database:
 
     def _append_logs_batch_sync(self, entries: list[tuple[str, dict, int | None]]) -> None:
         with self._lock:
-            active = self._get_active_session_sync()
-            default_session_id = active["id"] if active else None
             data_to_insert = []
             for dev_id, item, session_id in entries:
-                s_id = session_id if session_id is not None else default_session_id
-                if s_id is None:
+                if session_id is None:
                     continue
                 t, mag, temp, pct, v = self._extract_item_fields(item)
                 data_to_insert.append((
-                    s_id,
+                    session_id,
                     dev_id,
                     t,
                     mag,

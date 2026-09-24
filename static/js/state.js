@@ -82,7 +82,8 @@ class StateStore {
   }
 
   isViewingHistorical() {
-    return this.selectedSessionId !== null;
+    const liveSessionId = this.activeSession?.is_active ? this.activeSession.id : null;
+    return this.selectedSessionId !== null && this.selectedSessionId !== liveSessionId;
   }
 
   setDevices(deviceList) {
@@ -164,6 +165,10 @@ class StateStore {
 
     const id = msg.device_id;
     if (!id) return;
+
+    // Historical dashboards must remain a snapshot of their selected match.
+    // Live telemetry is refreshed when the user returns to the direct view.
+    if (this.isViewingHistorical()) return;
 
     const existing = this.devices.get(id) || {
       device_id: id,
