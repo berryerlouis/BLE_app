@@ -84,17 +84,28 @@ class DeviceManager:
             log.info("Using Bluetooth adapter %s", adapter)
 
         log.info("Scanning continuously for satellites advertising %s...", sorted(target_names))
-        self._scanner = BleakScanner(**scanner_options)
-        await self._scanner.start()
-        heartbeat = asyncio.create_task(self._log_scan_heartbeat())
-        try:
-            await self._stop.wait()
-        finally:
-            heartbeat.cancel()
-            await self._scanner.stop()
-            for task in list(self._sessions.values()):
-                task.cancel()
-            await asyncio.gather(*self._sessions.values(), heartbeat, return_exceptions=True)
+        while not self._stop.is_set():
+            self._scanner = BleakScanner(**scanner_options)
+            try:
+                await self._scanner.start()
+            except BleakError as exc:
+                self._scanner = None
+                retry_delay = self._cfg["reconnect_delay_s"]
+                log.warning("Unable to start BLE scan: %s. Retrying in %ss", exc, retry_delay)
+                await self._sleep(retry_delay)
+                continue
+
+            heartbeat = asyncio.create_task(self._log_scan_heartbeat())
+            try:
+                await self._stop.wait()
+            finally:
+                heartbeat.cancel()
+                await self._scanner.stop()
+                await asyncio.gather(heartbeat, return_exceptions=True)
+
+        for task in list(self._sessions.values()):
+            task.cancel()
+        await asyncio.gather(*self._sessions.values(), return_exceptions=True)
 
     async def _log_scan_heartbeat(self) -> None:
         """Periodically report what the adapter sees, to diagnose 'no satellite found'."""
