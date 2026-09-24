@@ -119,7 +119,6 @@ class StateStore {
     if (msg.type === 'session_created') {
       this.activeSession = msg.session;
       this.sessions = [msg.session, ...this.sessions.map((s) => ({ ...s, is_active: false }))];
-      this.selectedSessionId = null;
       this.clearSessionMaxG();
       this.notify('sessions_updated', {
         sessions: this.sessions,
@@ -130,7 +129,6 @@ class StateStore {
     } else if (msg.type === 'session_activated') {
       this.activeSession = msg.session;
       this.sessions = this.sessions.map((s) => ({ ...s, is_active: s.id === msg.session.id }));
-      this.selectedSessionId = null;
       this.notify('sessions_updated', {
         sessions: this.sessions,
         activeSession: this.activeSession,
@@ -142,7 +140,6 @@ class StateStore {
       if (this.activeSession?.id === msg.session.id) {
         this.activeSession = null;
       }
-      this.selectedSessionId = null;
       this.notify('sessions_updated', {
         sessions: this.sessions,
         activeSession: this.activeSession,
