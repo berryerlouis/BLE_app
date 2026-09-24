@@ -15,6 +15,8 @@ class App {
   constructor() {
     this.chartManager = new ChartManager();
     this.modalView = new ModalView();
+    this.pendingDashboardUpdates = new Map();
+    this.dashboardUpdateTimer = null;
 
     this.dashboardView = new DashboardView(
       (deviceId) => this.showPlayerView(deviceId),
@@ -101,7 +103,7 @@ class App {
       }
     } else if (event === 'device_updated') {
       if (!state.currentDeviceId) {
-        this.dashboardView.updateDevice(payload.deviceId, payload.device);
+        this.queueDashboardUpdate(payload.deviceId, payload.device);
       }
       // Check if newly discovered satellite needs label prompt
       if (payload.deviceId) {
@@ -112,6 +114,20 @@ class App {
         this.playerView.handleLiveMessage(payload.message);
       }
     }
+  }
+
+  queueDashboardUpdate(deviceId, device) {
+    this.pendingDashboardUpdates.set(deviceId, device);
+    if (this.dashboardUpdateTimer) return;
+
+    this.dashboardUpdateTimer = setTimeout(() => {
+      this.dashboardUpdateTimer = null;
+      const updates = this.pendingDashboardUpdates;
+      this.pendingDashboardUpdates = new Map();
+      for (const [updatedDeviceId, updatedDevice] of updates) {
+        this.dashboardView.updateDevice(updatedDeviceId, updatedDevice);
+      }
+    }, CONFIG.DASHBOARD_REFRESH_INTERVAL_MS);
   }
 
   async switchSession(sessionId) {

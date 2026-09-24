@@ -180,8 +180,6 @@ export class PlayerView {
   }
 
   async open(deviceId, sessionId = null) {
-    progressBar.start();
-
     if (sessionId) {
       state.setSelectedSessionId(sessionId);
     }
@@ -192,9 +190,6 @@ export class PlayerView {
     const loadLabel = currentSession
       ? `Chargement de « ${currentSession.name} » — ${playerName}...`
       : `Chargement des données de ${playerName}...`;
-
-    sessionLoader.show(loadLabel);
-    sessionLoader.update(15);
 
     state.setCurrentDevice(deviceId, []);
     this.chartManager.clear();
@@ -218,6 +213,16 @@ export class PlayerView {
     }
 
     this.container?.classList.remove('hidden');
+
+    // Without a selected session, the device state comes directly from the WebSocket.
+    if (!currentSessionId) {
+      this.rebuildAll();
+      return;
+    }
+
+    progressBar.start();
+    sessionLoader.show(loadLabel);
+    sessionLoader.update(15);
     progressBar.set(35);
     sessionLoader.update(35, `${loadLabel} Récupération du journal...`);
 
