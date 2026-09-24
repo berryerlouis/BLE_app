@@ -168,7 +168,7 @@ export class DashboardView {
 
     const currentSelected = state.selectedSessionId;
     this.globalSessionSelect.innerHTML = `
-      <option value="" ${currentSelected === null ? 'selected' : ''}>Live</option>
+      <option value="" ${currentSelected === null ? 'selected' : ''}>🔴 Live</option>
     ` + (sessions.length === 0 ? '<option value="" disabled>Aucun match archivé</option>' : sessions.map((s) => {
       const isSelected = s.id === currentSelected;
       const dateLabel = formatDateTime(s.start_time);
