@@ -188,8 +188,16 @@ class DeviceManager:
         address = device.address
         log.info("Connecting to %s (%s)", name, address)
         self._emit_status(address, name, "connecting")
-        client = BleakClient(device, winrt={"use_cached_services": False})
-        async with self._connect_lock:
+        client_options = {}
+        if sys.platform == "win32":
+            client_options["winrt"] = {
+                "use_cached_services": self._cfg.get("winrt_use_cached_services", True),
+            }
+        client = BleakClient(device, **client_options)
+        if sys.platform == "win32":
+            async with self._connect_lock:
+                await client.connect()
+        else:
             await client.connect()
         try:
             self._emit_status(address, name, "connected")
