@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from pathlib import Path
 
 log = logging.getLogger("update")
@@ -82,8 +81,5 @@ async def apply_update() -> dict:
             log.warning("pip install failed during update: %s", pip_err)
 
     new_version = read_local_version()
-    log.info("Update applied, now at version %s. Restarting process...", new_version)
-
-    # Restart=always in the systemd unit relaunches the process automatically on clean exit.
-    asyncio.get_event_loop().call_later(1.0, os._exit, 0)
+    log.info("Update applied, now at version %s. Awaiting graceful restart...", new_version)
     return {"restarting": True, "new_version": new_version}

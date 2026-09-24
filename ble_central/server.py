@@ -484,6 +484,10 @@ async def update_apply_handler(_request: web.Request) -> web.Response:
         result = await update.apply_update()
     except RuntimeError as exc:
         return web.json_response({"error": str(exc)}, status=500)
+    request_restart = _request.app.get("request_restart")
+    if request_restart:
+        # Let aiohttp flush this response before the main process closes the BLE links.
+        asyncio.get_running_loop().call_later(1.0, request_restart.set)
     return web.json_response(result)
 
 

@@ -160,9 +160,12 @@ class App {
       sessionLoader.show(label);
       sessionLoader.update(25);
       state.setSelectedSessionId(sessionId);
+      // Do not leave the current live snapshot visible while the archived match loads.
+      state.setDevices([]);
       try {
         sessionLoader.update(50, `${label} Récupération des satellites...`);
         const deviceList = await api.fetchDevices(sessionId);
+        if (state.selectedSessionId !== sessionId) return;
         progressBar.set(80);
         sessionLoader.update(85, `${label} Affichage...`);
         state.setDevices(deviceList);

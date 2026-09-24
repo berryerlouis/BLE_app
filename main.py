@@ -54,6 +54,8 @@ async def main() -> None:
     db_path = config.get("database", {}).get("path")
     db_path = (CONFIG_PATH.parent / db_path).resolve() if db_path else DEFAULT_DB_PATH
     app = create_app(data_queue, db_path=db_path, logs_dir=LOGS_DIR)
+    restart_requested = asyncio.Event()
+    app["request_restart"] = restart_requested
 
     runner = web.AppRunner(app)
     await runner.setup()
@@ -63,12 +65,23 @@ async def main() -> None:
 
     ble_task = asyncio.create_task(ble_manager.run_forever())
 
+    restart_task = asyncio.create_task(restart_requested.wait())
     try:
-        await ble_task
+        done, _ = await asyncio.wait(
+            (ble_task, restart_task), return_when=asyncio.FIRST_COMPLETED
+        )
+        if restart_task in done:
+            log.info("Graceful restart requested; disconnecting BLE satellites.")
+            ble_manager.stop()
+            await ble_task
+        else:
+            await ble_task
     except asyncio.CancelledError:
         pass
     finally:
         ble_manager.stop()
+        restart_task.cancel()
+        await asyncio.gather(restart_task, return_exceptions=True)
         await runner.cleanup()
 
 
