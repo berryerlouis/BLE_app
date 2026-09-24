@@ -77,23 +77,35 @@ class DeviceManager:
             log.info("Discovered satellite '%s' (%s), advertised as '%s'", display_name, device.address, name)
             self._sessions[device.address] = asyncio.create_task(self._run_session(device, display_name))
 
-        scanner_options = {"detection_callback": detection_callback}
-        adapter = self._cfg.get("adapter")
-        if adapter and sys.platform == "linux":
-            scanner_options["bluez"] = {"adapter": adapter}
-            log.info("Using Bluetooth adapter %s", adapter)
-
         log.info("Scanning continuously for satellites advertising %s...", sorted(target_names))
+        adapters = [self._cfg.get("adapter")]
+        fallback_adapter = self._cfg.get("fallback_adapter")
+        if fallback_adapter and fallback_adapter not in adapters:
+            adapters.append(fallback_adapter)
+
         while not self._stop.is_set():
-            self._scanner = BleakScanner(**scanner_options)
-            try:
-                await self._scanner.start()
-            except BleakError as exc:
-                self._scanner = None
-                retry_delay = self._cfg["reconnect_delay_s"]
-                log.warning("Unable to start BLE scan: %s. Retrying in %ss", exc, retry_delay)
+            last_error: BleakError | None = None
+            active_adapter = None
+            for adapter in adapters:
+                scanner_options = {"detection_callback": detection_callback}
+                if adapter and sys.platform == "linux":
+                    scanner_options["bluez"] = {"adapter": adapter}
+                self._scanner = BleakScanner(**scanner_options)
+                try:
+                    await self._scanner.start()
+                    active_adapter = adapter
+                    break
+                except BleakError as exc:
+                    last_error = exc
+                    self._scanner = None
+
+            if self._scanner is None:
+                retry_delay = self._cfg.get("adapter_retry_delay_s", 10)
+                log.warning("Unable to start BLE scan: %s. Retrying in %ss", last_error, retry_delay)
                 await self._sleep(retry_delay)
                 continue
+
+            log.info("Using Bluetooth adapter %s", active_adapter or "default")
 
             heartbeat = asyncio.create_task(self._log_scan_heartbeat())
             try:
