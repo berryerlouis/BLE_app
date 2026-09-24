@@ -18,7 +18,7 @@ ble:
   battery_data_char_uuid: "2a6f0003-8a7d-4e8b-9c7d-4b2a0b9c0001"
   scan_timeout_s: 10
   # Maximum duration of a GATT connection attempt before the session retries.
-  connect_timeout_s: 5
+  connect_timeout_s: 10
   reconnect_delay_s: 1
   # Windows: reuse the GATT cache for faster subsequent connections. Set false after a firmware GATT change.
   winrt_use_cached_services: true
