@@ -172,11 +172,11 @@ class DeviceManager:
                         break
                 # BlueZ removes silent devices from its cache, so reconnect only after a new
                 # advertisement has supplied a valid BLEDevice instance.
-                if await self._wait_for_advertisement(address, rediscover_timeout):
-                    log.info("%s (%s) re-advertised, reconnecting", name, address)
-                else:
+                while not self._stop.is_set():
+                    if await self._wait_for_advertisement(address, rediscover_timeout):
+                        log.info("%s (%s) re-advertised, reconnecting", name, address)
+                        break
                     log.info("%s (%s) silent for %ss; waiting for advertisement", name, address, rediscover_timeout)
-                    continue
         finally:
             self._sessions.pop(address, None)
             self._seen_events.pop(address, None)
