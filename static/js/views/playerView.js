@@ -282,7 +282,7 @@ export class PlayerView {
       this.rssiBadge.title = `Signal BLE : ${rssi.text}`;
     }
     if (this.rssiIcon) this.rssiIcon.style.color = rssi.color;
-    if (this.rssiLabel) this.rssiLabel.textContent = rssi.label;
+    if (this.rssiLabel) this.rssiLabel.textContent = rssi.text;
 
     if (this.thresholdValue) {
       this.thresholdValue.textContent = `${fmt(getDeviceThreshold(dev), 1)}`;

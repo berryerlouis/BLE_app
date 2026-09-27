@@ -296,7 +296,7 @@ export class DashboardView {
           </div>
           <div class="rssi-badge rssi-${rssi.level}" title="Signal BLE : ${rssi.text}">
             <i data-lucide="${rssi.icon}" style="color: ${rssi.color}"></i>
-            <span class="rssi-label">${rssi.label}</span>
+            <span class="rssi-label">${rssi.text}</span>
           </div>
         </td>
 
@@ -479,8 +479,8 @@ export class DashboardView {
       const rssiIcon = rssiBadge.querySelector('[data-lucide], svg');
       if (rssiIcon) rssiIcon.style.color = rssi.color;
       const rssiLabel = rssiBadge.querySelector('.rssi-label');
-      if (rssiLabel && rssiLabel.textContent !== rssi.label) {
-        rssiLabel.textContent = rssi.label;
+      if (rssiLabel && rssiLabel.textContent !== rssi.text) {
+        rssiLabel.textContent = rssi.text;
       }
     }
 

@@ -172,6 +172,7 @@ class DeviceManager:
                     log.info("%s (%s) re-advertised, reconnecting", name, address)
                 else:
                     log.info("%s (%s) silent for %ss; waiting for advertisement", name, address, rediscover_timeout)
+                    continue
         finally:
             self._sessions.pop(address, None)
             self._seen_events.pop(address, None)
