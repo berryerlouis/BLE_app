@@ -248,8 +248,23 @@ class DeviceManager:
                 item.update(device_id=address, device_name=name)
                 self._queue.put_nowait(item)
 
+            battery_notification_logged = False
+
             def battery_handler(_sender, data: bytearray) -> None:
-                item = BatteryData.from_bytes(bytes(data)).to_dict()
+                nonlocal battery_notification_logged
+                payload = bytes(data)
+                try:
+                    battery = BatteryData.from_bytes(payload)
+                except Exception as exc:
+                    log.warning("Invalid battery data from %s (%s): %d bytes (%s)", name, address, len(payload), exc)
+                    return
+                if not battery_notification_logged:
+                    log.info(
+                        "Battery data from %s (%s): %.2f V, %d%% (%d bytes)",
+                        name, address, battery.voltage, battery.percentage, battery.raw_len,
+                    )
+                    battery_notification_logged = True
+                item = battery.to_dict()
                 item.update(device_id=address, device_name=name)
                 self._queue.put_nowait(item)
 
