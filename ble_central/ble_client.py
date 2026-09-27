@@ -87,7 +87,11 @@ class DeviceManager:
             last_error: BleakError | None = None
             active_adapter = None
             for adapter in adapters:
-                scanner_options = {"detection_callback": detection_callback}
+                scanner_options = {
+                    "detection_callback": detection_callback,
+                    # IMU Satellite exposes its local name in the active scan response.
+                    "scanning_mode": "active",
+                }
                 if adapter and sys.platform == "linux":
                     scanner_options["bluez"] = {"adapter": adapter}
                 self._scanner = BleakScanner(**scanner_options)
