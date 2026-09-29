@@ -405,7 +405,7 @@ export class DashboardView {
           <div class="threshold-input-wrapper">
             <input
               type="number"
-              class="row-rotation-threshold-input form-input-sm"
+              class="row-threshold-input row-rotation-threshold-input form-input-sm"
               data-device-id="${escapeHtml(mac)}"
               value="${rotationThreshold}"
               min="1"
