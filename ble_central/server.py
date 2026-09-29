@@ -762,6 +762,8 @@ def _update_state(app: web.Application, item: dict) -> list[dict]:
         # Keep the "live now" reading untouched when replaying an old, buffered sample.
         if not is_historical:
             summary.update({k: item[k] for k in ("aX", "aY", "aZ", "gX", "gY", "gZ", "temp")})
+            if "rssi" in item:
+                summary["rssi"] = item["rssi"]
         magnitude = math.sqrt(item["aX"] ** 2 + item["aY"] ** 2 + item["aZ"] ** 2)
         if magnitude >= summary["impact_threshold"] and not summary.get("impact_alert"):
             summary["impact_alert"] = True

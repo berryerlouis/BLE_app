@@ -3,7 +3,7 @@
  */
 import { CONFIG } from '../config.js';
 import { api } from '../api.js';
-import { state } from '../state.js?v=20260929-mobile-status';
+import { state } from '../state.js?v=20260929-live-rssi';
 import { escapeHtml, formatDuration } from '../utils.js';
 
 export class ModalView {

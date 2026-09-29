@@ -6,8 +6,10 @@ import time
 from dataclasses import asdict, dataclass
 from math import isfinite
 
-# Matches: struct { float aX,aY,aZ; float gX,gY,gZ; float temp; } (packed, little-endian)
-_IMU_STRUCT = struct.Struct("<7f")
+# Legacy firmware sends seven floats (28 bytes). Current firmware appends the
+# connection RSSI as an int16 and ARM aligns the record to 32 bytes.
+_IMU_LEGACY_STRUCT = struct.Struct("<7f")
+_IMU_STRUCT = struct.Struct("<7fh2x")
 # Matches: struct { float voltage; uint8_t percentage; uint32_t charging; }, padded to 12 bytes by default ARM alignment.
 # Legacy firmware sends 5-byte packed or 8-byte padded values and does not report charging.
 _BATTERY_STRUCT = struct.Struct("<fB3xI")
@@ -15,7 +17,8 @@ _BATTERY_LEGACY_STRUCT = struct.Struct("<fB3x")
 _BATTERY_COMPACT_STRUCT = struct.Struct("<fB")
 _MAX_SINGLE_CELL_VOLTAGE = 4.35
 # Matches: struct { uint64_t epochMs; ImuData imu; } (packed) sent while replaying offline data
-_IMU_HISTORY_STRUCT = struct.Struct("<Q7f")
+_IMU_HISTORY_LEGACY_STRUCT = struct.Struct("<Q7f")
+_IMU_HISTORY_STRUCT = struct.Struct("<Q7fh2x")
 # Matches: struct { uint64_t epochMs; BatteryData battery; } (packed, BatteryData is 12 bytes)
 _BATTERY_HISTORY_STRUCT = struct.Struct("<QfB3xI")
 _BATTERY_HISTORY_LEGACY_STRUCT = struct.Struct("<QfB3x")
@@ -32,13 +35,20 @@ class ImuData:
     gY: float
     gZ: float
     temp: float
+    rssi: int | None = None
 
     @classmethod
     def from_bytes(cls, data: bytes) -> "ImuData":
-        return cls(*_IMU_STRUCT.unpack(data))
+        if len(data) == _IMU_LEGACY_STRUCT.size:
+            return cls(*_IMU_LEGACY_STRUCT.unpack(data))
+        a_x, a_y, a_z, g_x, g_y, g_z, temp, rssi = _IMU_STRUCT.unpack(data)
+        return cls(a_x, a_y, a_z, g_x, g_y, g_z, temp, rssi if -127 <= rssi < 0 else None)
 
     def to_dict(self) -> dict:
-        return {"type": "imu", "timestamp": time.time(), **asdict(self)}
+        result = {"type": "imu", "timestamp": time.time(), **asdict(self)}
+        if self.rssi is None:
+            result.pop("rssi")
+        return result
 
 
 @dataclass
@@ -100,14 +110,17 @@ class ImuHistorySample:
     gY: float
     gZ: float
     temp: float
+    rssi: int | None = None
 
     @classmethod
     def from_bytes(cls, data: bytes) -> "ImuHistorySample":
-        epoch_ms, aX, aY, aZ, gX, gY, gZ, temp = _IMU_HISTORY_STRUCT.unpack(data)
-        return cls(epoch_ms, aX, aY, aZ, gX, gY, gZ, temp)
+        if len(data) == _IMU_HISTORY_LEGACY_STRUCT.size:
+            return cls(*_IMU_HISTORY_LEGACY_STRUCT.unpack(data))
+        epoch_ms, aX, aY, aZ, gX, gY, gZ, temp, rssi = _IMU_HISTORY_STRUCT.unpack(data)
+        return cls(epoch_ms, aX, aY, aZ, gX, gY, gZ, temp, rssi if -127 <= rssi < 0 else None)
 
     def to_dict(self) -> dict:
-        return {
+        result = {
             "type": "imu",
             "historical": True,
             "timestamp": self.epoch_ms / 1000.0,
@@ -119,6 +132,9 @@ class ImuHistorySample:
             "gZ": self.gZ,
             "temp": self.temp,
         }
+        if self.rssi is not None:
+            result["rssi"] = self.rssi
+        return result
 
 
 @dataclass

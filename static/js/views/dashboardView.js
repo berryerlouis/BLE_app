@@ -3,7 +3,7 @@
  */
 import { CONFIG } from '../config.js?v=20260929-rotation-800';
 import { api } from '../api.js?v=20260929-rotation-threshold';
-import { state } from '../state.js?v=20260929-sync-progress';
+import { state } from '../state.js?v=20260929-live-rssi';
 import {
   fmt,
   calcAccelMagnitude,

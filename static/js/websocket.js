@@ -2,7 +2,7 @@
  * WebSocket Live Data Client
  */
 import { CONFIG } from './config.js?v=20260929-rotation-800';
-import { state } from './state.js?v=20260929-sync-progress';
+import { state } from './state.js?v=20260929-live-rssi';
 
 class WebSocketClient {
   constructor() {

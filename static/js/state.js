@@ -214,6 +214,7 @@ class StateStore {
           gY: msg.gY,
           gZ: msg.gZ,
           temp: msg.temp,
+          ...(msg.rssi !== undefined ? { rssi: msg.rssi } : {}),
         });
       }
       const mag = Math.sqrt(msg.aX ** 2 + msg.aY ** 2 + msg.aZ ** 2);
