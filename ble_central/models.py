@@ -8,15 +8,17 @@ from math import isfinite
 
 # Matches: struct { float aX,aY,aZ; float gX,gY,gZ; float temp; } (packed, little-endian)
 _IMU_STRUCT = struct.Struct("<7f")
-# Matches: struct { float voltage; uint8_t percentage; bool charging; }, padded to 8 bytes by default ARM alignment.
-# Older firmware used three padding bytes after percentage; its first padding byte decodes as charging=False.
-_BATTERY_STRUCT = struct.Struct("<fBB2x")
+# Matches: struct { float voltage; uint8_t percentage; uint32_t charging; }, padded to 12 bytes by default ARM alignment.
+# Legacy firmware sends 5-byte packed or 8-byte padded values and does not report charging.
+_BATTERY_STRUCT = struct.Struct("<fB3xI")
+_BATTERY_LEGACY_STRUCT = struct.Struct("<fB3x")
 _BATTERY_COMPACT_STRUCT = struct.Struct("<fB")
 _MAX_SINGLE_CELL_VOLTAGE = 4.35
 # Matches: struct { uint64_t epochMs; ImuData imu; } (packed) sent while replaying offline data
 _IMU_HISTORY_STRUCT = struct.Struct("<Q7f")
-# Matches: struct { uint64_t epochMs; BatteryData battery; } (packed, BatteryData still padded to 8 bytes)
-_BATTERY_HISTORY_STRUCT = struct.Struct("<QfBB2x")
+# Matches: struct { uint64_t epochMs; BatteryData battery; } (packed, BatteryData is 12 bytes)
+_BATTERY_HISTORY_STRUCT = struct.Struct("<QfB3xI")
+_BATTERY_HISTORY_LEGACY_STRUCT = struct.Struct("<QfB3x")
 # Matches: struct { uint32_t pendingImu; uint32_t pendingBattery; uint8_t backfilling; } (packed)
 _SYNC_STATUS_STRUCT = struct.Struct("<IIB")
 
@@ -51,6 +53,9 @@ class BatteryData:
     def from_bytes(cls, data: bytes) -> "BatteryData":
         if len(data) == _BATTERY_COMPACT_STRUCT.size:
             voltage, percentage = _BATTERY_COMPACT_STRUCT.unpack(data)
+            charging = False
+        elif len(data) == _BATTERY_LEGACY_STRUCT.size:
+            voltage, percentage = _BATTERY_LEGACY_STRUCT.unpack(data)
             charging = False
         else:
             voltage, percentage, charging = _BATTERY_STRUCT.unpack(data)
@@ -127,7 +132,11 @@ class BatteryHistorySample:
 
     @classmethod
     def from_bytes(cls, data: bytes) -> "BatteryHistorySample":
-        epoch_ms, voltage, percentage, charging = _BATTERY_HISTORY_STRUCT.unpack(data)
+        if len(data) == _BATTERY_HISTORY_LEGACY_STRUCT.size:
+            epoch_ms, voltage, percentage = _BATTERY_HISTORY_LEGACY_STRUCT.unpack(data)
+            charging = False
+        else:
+            epoch_ms, voltage, percentage, charging = _BATTERY_HISTORY_STRUCT.unpack(data)
         if not isfinite(voltage) or voltage < 0 or voltage > _MAX_SINGLE_CELL_VOLTAGE:
             voltage = 0.0
             percentage = 0

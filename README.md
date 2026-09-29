@@ -198,7 +198,9 @@ Flux :
 4. Le dashboard affiche la version lue sur chaque satellite connecté. Lorsqu'un paquet présent dans
   `firmware/` est plus récent, un indicateur de mise à jour ouvre directement la modal avec ce paquet sélectionné.
 5. Choisir le port série du satellite (détecté automatiquement via son VID USB Seeed `0x2886`),
-   puis cliquer sur **« Flasher »**.
+   puis cliquer sur **« Flasher »**. Pour déployer le même paquet sur tous les satellites USB
+   détectés, cliquer sur **« Flasher tous »** : les redémarrages en bootloader sont préparés l'un
+   après l'autre, puis les transferts DFU sont lancés en parallèle avec une progression par port.
 
 Lorsqu'un satellite XIAO est détecté par USB, le dashboard l'indique dans l'en-tête. Après
 l'installation du firmware incluant l'état USB VBUS, la batterie du satellite affiche aussi
@@ -217,6 +219,8 @@ Endpoints exposés :
 - `GET /api/firmware/ports` : liste les ports série disponibles
 - `POST /api/firmware/flash` : lance le flashage `{ "port": "...", "filename": "..." }` ; la
   progression est diffusée aux clients connectés via WebSocket (`type: "firmware_flash"`)
+- `POST /api/firmware/flash-all` : lance le flashage du paquet `{ "filename": "..." }` sur tous
+  les satellites XIAO USB détectés ; chaque progression WebSocket inclut `batch: true` et son port
 
 ## Récupérer les logs une fois le Pi sur site
 

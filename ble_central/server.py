@@ -78,6 +78,7 @@ def create_app(
     app.router.add_delete("/api/firmware/{filename}", delete_firmware_handler)
     app.router.add_get("/api/firmware/ports", list_serial_ports_handler)
     app.router.add_post("/api/firmware/flash", flash_firmware_handler)
+    app.router.add_post("/api/firmware/flash-all", flash_all_firmware_handler)
 
     # Diagnostics: lets someone on-site export logs/db for offline analysis once the Pi
     # is deployed and no longer reachable over SSH.
@@ -553,8 +554,10 @@ async def flash_firmware_handler(request: web.Request) -> web.Response:
     if not zip_path.is_file():
         return web.json_response({"error": "Firmware introuvable"}, status=404)
 
-    if request.app["firmware_lock"].locked():
+    firmware_lock: asyncio.Lock = request.app["firmware_lock"]
+    if firmware_lock.locked():
         return web.json_response({"error": "Une mise à jour est déjà en cours"}, status=409)
+    await firmware_lock.acquire()
 
     app = request.app
 
@@ -570,18 +573,102 @@ async def flash_firmware_handler(request: web.Request) -> web.Response:
         })
 
     async def run_flash() -> None:
-        async with app["firmware_lock"]:
-            try:
-                await firmware.flash_firmware(port, zip_path, progress_cb)
-            except firmware.FlashError as exc:
-                log.warning("Firmware flash failed: %s", exc)
-                await progress_cb("error", str(exc), None)
-            except Exception:
-                log.exception("Unexpected error flashing firmware")
-                await progress_cb("error", "Erreur inattendue pendant la mise à jour", None)
+        try:
+            await firmware.flash_firmware(port, zip_path, progress_cb)
+        except firmware.FlashError as exc:
+            log.warning("Firmware flash failed: %s", exc)
+            await progress_cb("error", str(exc), None)
+        except Exception:
+            log.exception("Unexpected error flashing firmware")
+            await progress_cb("error", "Erreur inattendue pendant la mise à jour", None)
+        finally:
+            firmware_lock.release()
 
     asyncio.create_task(run_flash())
     return web.json_response({"started": True}, status=202)
+
+
+async def flash_all_firmware_handler(request: web.Request) -> web.Response:
+    """Flash the selected package to every connected XIAO satellite.
+
+    Bootloaders are entered one by one so each re-enumerated serial port remains associated
+    with its original satellite. Once prepared, independent DFU transfers run concurrently.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "Corps JSON invalide"}, status=400)
+
+    filename = str(body.get("filename", "")).strip()
+    if not filename:
+        return web.json_response({"error": "Firmware requis"}, status=400)
+
+    zip_path = firmware.FIRMWARE_DIR / Path(filename).name
+    if not zip_path.is_file():
+        return web.json_response({"error": "Firmware introuvable"}, status=404)
+
+    ports = [port["device"] for port in firmware.list_serial_ports() if port["likely_satellite"]]
+    if not ports:
+        return web.json_response({"error": "Aucun satellite USB détecté"}, status=400)
+
+    firmware_lock: asyncio.Lock = request.app["firmware_lock"]
+    if firmware_lock.locked():
+        return web.json_response({"error": "Une mise à jour est déjà en cours"}, status=409)
+    await firmware_lock.acquire()
+    app = request.app
+
+    async def progress_cb(port: str, stage: str, message: str, percent: int | None) -> None:
+        await _broadcast_message(app, {
+            "type": "firmware_flash",
+            "batch": True,
+            "stage": stage,
+            "message": message,
+            "percent": percent,
+            "port": port,
+            "filename": filename,
+            "timestamp": time.time(),
+        })
+
+    async def prepare_port(port: str) -> tuple[str, str] | None:
+        try:
+            bootloader_port = await firmware.prepare_flash(
+                port, lambda stage, message, percent: progress_cb(port, stage, message, percent)
+            )
+            return port, bootloader_port
+        except firmware.FlashError as exc:
+            log.warning("Firmware bootloader preparation failed for %s: %s", port, exc)
+            await progress_cb(port, "error", str(exc), None)
+        except Exception:
+            log.exception("Unexpected error preparing %s for firmware flash", port)
+            await progress_cb(port, "error", "Erreur inattendue pendant la préparation", None)
+        return None
+
+    async def transfer_port(port: str, bootloader_port: str) -> None:
+        try:
+            await firmware.transfer_firmware(
+                bootloader_port, zip_path,
+                lambda stage, message, percent: progress_cb(port, stage, message, percent),
+            )
+        except firmware.FlashError as exc:
+            log.warning("Firmware transfer failed for %s: %s", port, exc)
+            await progress_cb(port, "error", str(exc), None)
+        except Exception:
+            log.exception("Unexpected error flashing %s", port)
+            await progress_cb(port, "error", "Erreur inattendue pendant la mise à jour", None)
+
+    async def run_flash_all() -> None:
+        try:
+            prepared = []
+            for port in ports:
+                result = await prepare_port(port)
+                if result is not None:
+                    prepared.append(result)
+            await asyncio.gather(*(transfer_port(port, bootloader_port) for port, bootloader_port in prepared))
+        finally:
+            firmware_lock.release()
+
+    asyncio.create_task(run_flash_all())
+    return web.json_response({"started": True, "ports": ports}, status=202)
 
 
 async def websocket_handler(request: web.Request) -> web.WebSocketResponse:

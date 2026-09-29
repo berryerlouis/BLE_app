@@ -1614,6 +1614,45 @@ canvas:active {
   white-space: nowrap;
 }
 
+.firmware-batch-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.firmware-batch-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  padding: 8px 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.firmware-batch-port {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.firmware-batch-status {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.firmware-batch-item.is-done .firmware-batch-status { color: var(--color-success); }
+.firmware-batch-item.is-error .firmware-batch-status { color: var(--color-danger); }
+
+.firmware-batch-item .progress-bar-wrapper {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+  height: 5px;
+}
+
 .firmware-version-badge {
   display: inline-flex;
   align-items: center;

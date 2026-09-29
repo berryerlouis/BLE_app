@@ -170,4 +170,15 @@ export const api = {
     if (!res.ok) throw new Error(data.error || 'Erreur lors du lancement de la mise à jour');
     return data;
   },
+
+  async flashAllFirmware(filename) {
+    const res = await fetch('/api/firmware/flash-all', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erreur lors du lancement des mises à jour');
+    return data;
+  },
 };

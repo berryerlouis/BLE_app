@@ -604,10 +604,16 @@
           <p id="firmware-progress-text" class="progress-text">--</p>
         </div>
 
+        <div id="firmware-batch-progress" class="firmware-batch-progress hidden" role="status" aria-live="polite"></div>
+
         <p id="firmware-error" class="error-banner hidden"></p>
       </div>
       <div class="modal-footer">
         <button id="firmware-close-btn" class="btn btn-secondary" type="button">Fermer</button>
+        <button id="firmware-flash-all-btn" class="btn btn-secondary" type="button" title="Mettre à jour tous les satellites USB détectés">
+          <i data-lucide="layers-3"></i>
+          <span>Flasher tous</span>
+        </button>
         <button id="firmware-flash-btn" class="btn btn-primary" type="button">
           <i data-lucide="zap"></i>
           <span>Flasher</span>

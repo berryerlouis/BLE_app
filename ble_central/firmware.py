@@ -186,14 +186,12 @@ def _resolve_nrfutil_cmd() -> list[str] | None:
     return [exe] if exe else None
 
 
-async def flash_firmware(port: str, zip_path: Path, progress_cb: ProgressCb) -> None:
-    """Flash `zip_path` (a DFU package) onto the satellite connected at `port` over USB."""
-    nrfutil_cmd = _resolve_nrfutil_cmd()
-    if nrfutil_cmd is None:
-        raise FlashError("adafruit-nrfutil est introuvable. Installez-le avec : pip install adafruit-nrfutil")
-    if not zip_path.is_file():
-        raise FlashError(f"Firmware introuvable : {zip_path.name}")
+async def prepare_flash(port: str, progress_cb: ProgressCb) -> str:
+    """Restart one satellite into its bootloader and return its serial port.
 
+    Callers must prepare satellites one at a time: while boards re-enumerate, a concurrent
+    port scan cannot reliably associate a newly appeared bootloader with its original port.
+    """
     loop = asyncio.get_running_loop()
 
     await progress_cb("touch", f"Redémarrage de {port} en mode bootloader...", 5)
@@ -206,9 +204,18 @@ async def flash_firmware(port: str, zip_path: Path, progress_cb: ProgressCb) -> 
         raise FlashError(f"Impossible d'ouvrir le port {port} : {exc}") from exc
 
     await progress_cb("waiting", "Attente de la réapparition du satellite...", 15)
-    bootloader_port = await loop.run_in_executor(
+    return await loop.run_in_executor(
         None, _wait_for_bootloader_port, known_ports, PORT_REAPPEAR_TIMEOUT_S
     )
+
+
+async def transfer_firmware(bootloader_port: str, zip_path: Path, progress_cb: ProgressCb) -> None:
+    """Transfer a DFU package to a satellite already running its bootloader."""
+    nrfutil_cmd = _resolve_nrfutil_cmd()
+    if nrfutil_cmd is None:
+        raise FlashError("adafruit-nrfutil est introuvable. Installez-le avec : pip install adafruit-nrfutil")
+    if not zip_path.is_file():
+        raise FlashError(f"Firmware introuvable : {zip_path.name}")
 
     await progress_cb("flashing", f"Transfert du firmware vers {bootloader_port}...", 25)
     cmd = [
@@ -242,3 +249,9 @@ async def flash_firmware(port: str, zip_path: Path, progress_cb: ProgressCb) -> 
         raise FlashError(f"adafruit-nrfutil a échoué (code {returncode})")
 
     await progress_cb("done", "Mise à jour terminée avec succès", 100)
+
+
+async def flash_firmware(port: str, zip_path: Path, progress_cb: ProgressCb) -> None:
+    """Flash `zip_path` (a DFU package) onto one satellite connected over USB."""
+    bootloader_port = await prepare_flash(port, progress_cb)
+    await transfer_firmware(bootloader_port, zip_path, progress_cb)
