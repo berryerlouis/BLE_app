@@ -41,7 +41,7 @@ ble:
   firmware_version_refresh_s: 10
   scan_timeout_s: 10
   # Maximum duration of a GATT connection attempt before the session retries.
-  connect_timeout_s: 6
+  connect_timeout_s: 10
   # Cap every GATT read/write/notification setup request. This keeps a satellite with a
   # stalled optional characteristic from blocking its reconnect loop indefinitely.
   gatt_setup_timeout_s: 3

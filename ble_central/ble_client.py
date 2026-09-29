@@ -39,8 +39,8 @@ class DeviceManager:
         self._last_rssi_emit: dict[str, tuple[int, float]] = {}
         # Last BLE lifecycle state emitted per device: advertising/connecting/connected/subscribed/disconnected.
         self._link_state: dict[str, str] = {}
-        # WinRT (Windows) can't reliably resolve GATT services for two devices at once,
-        # so only one connect+discovery runs at a time even with multiple satellites.
+        # A controller can only establish one GATT connection procedure at a time.
+        # Each configured adapter has its own manager and therefore its own lock.
         self._connect_lock = asyncio.Lock()
         self._dropped_messages = 0
         self._last_drop_log_time = 0.0
@@ -314,10 +314,7 @@ class DeviceManager:
             disconnected.set()
 
         client = BleakClient(device, disconnected_callback=on_disconnect, **client_options)
-        if sys.platform == "win32":
-            async with self._connect_lock:
-                await client.connect(timeout=self._cfg.get("connect_timeout_s", 10))
-        else:
+        async with self._connect_lock:
             await client.connect(timeout=self._cfg.get("connect_timeout_s", 10))
         try:
             self._emit_status(address, name, "connected")
