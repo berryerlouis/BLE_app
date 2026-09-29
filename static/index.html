@@ -586,7 +586,7 @@
       </div>
       <div class="modal-body">
         <p class="text-secondary mb-4" style="font-size: 0.9rem;">
-          Branchez le satellite en USB sur cette machine, choisissez le firmware (.zip) et le port, puis lancez le flashage.
+          Branchez toutes les cartes satellites en USB sur cette machine, choisissez le firmware (.zip), puis lancez le flashage groupé.
         </p>
 
         <div class="firmware-section">
@@ -605,21 +605,12 @@
 
         <div class="firmware-section">
           <div class="firmware-section-header">
-            <span class="text-muted">Port USB du satellite</span>
+            <span class="text-muted">Cartes satellites USB détectées</span>
             <button id="firmware-refresh-ports-btn" class="btn btn-secondary btn-sm" type="button" title="Rafraîchir la liste des ports">
               <i data-lucide="refresh-cw"></i>
             </button>
           </div>
-          <select id="firmware-port-select" class="session-select" style="width:100%;">
-            <option value="">Aucun port détecté</option>
-          </select>
-        </div>
-
-        <div id="firmware-progress-container" class="update-progress-container hidden">
-          <div class="progress-bar-wrapper">
-            <div class="progress-bar" id="firmware-progress-bar"></div>
-          </div>
-          <p id="firmware-progress-text" class="progress-text">--</p>
+          <p id="firmware-ports-summary" class="text-secondary">Recherche des cartes...</p>
         </div>
 
         <div id="firmware-batch-progress" class="firmware-batch-progress hidden" role="status" aria-live="polite"></div>
@@ -628,13 +619,9 @@
       </div>
       <div class="modal-footer">
         <button id="firmware-close-btn" class="btn btn-secondary" type="button">Fermer</button>
-        <button id="firmware-flash-all-btn" class="btn btn-secondary" type="button" title="Mettre à jour tous les satellites USB détectés">
+        <button id="firmware-flash-all-btn" class="btn btn-primary" type="button" title="Mettre à jour toutes les cartes satellites USB détectées">
           <i data-lucide="layers-3"></i>
-          <span>Flasher tous</span>
-        </button>
-        <button id="firmware-flash-btn" class="btn btn-primary" type="button">
-          <i data-lucide="zap"></i>
-          <span>Flasher</span>
+          <span>Flasher toutes les cartes</span>
         </button>
       </div>
     </div>

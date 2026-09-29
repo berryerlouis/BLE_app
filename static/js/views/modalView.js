@@ -50,16 +50,12 @@ export class ModalView {
     this.firmwareBtn = document.getElementById('firmware-btn');
     this.firmwareModal = document.getElementById('firmware-modal');
     this.firmwareCloseBtn = document.getElementById('firmware-close-btn');
-    this.firmwareFlashBtn = document.getElementById('firmware-flash-btn');
     this.firmwareFlashAllBtn = document.getElementById('firmware-flash-all-btn');
     this.firmwareUploadInput = document.getElementById('firmware-upload-input');
     this.firmwareList = document.getElementById('firmware-list');
     this.firmwareListEmpty = document.getElementById('firmware-list-empty');
     this.firmwareRefreshPortsBtn = document.getElementById('firmware-refresh-ports-btn');
-    this.firmwarePortSelect = document.getElementById('firmware-port-select');
-    this.firmwareProgressContainer = document.getElementById('firmware-progress-container');
-    this.firmwareProgressBar = document.getElementById('firmware-progress-bar');
-    this.firmwareProgressText = document.getElementById('firmware-progress-text');
+    this.firmwarePortsSummary = document.getElementById('firmware-ports-summary');
     this.firmwareBatchProgress = document.getElementById('firmware-batch-progress');
     this.firmwareError = document.getElementById('firmware-error');
     this.selectedFirmwareFilename = null;
@@ -109,9 +105,7 @@ export class ModalView {
     this.firmwareCloseBtn?.addEventListener('click', () => this.hideFirmwareModal());
     this.firmwareRefreshPortsBtn?.addEventListener('click', () => this.loadSerialPorts());
     this.firmwareUploadInput?.addEventListener('change', () => this.handleUploadFirmware());
-    this.firmwareFlashBtn?.addEventListener('click', () => this.handleFlashFirmware());
     this.firmwareFlashAllBtn?.addEventListener('click', () => this.handleFlashAllFirmware());
-    this.firmwarePortSelect?.addEventListener('change', () => this.updateFlashButtonState());
   }
 
   needsLabel(device) {
@@ -363,7 +357,6 @@ export class ModalView {
 
   showFirmwareModal(preferredVersion = null) {
     this.firmwareError?.classList.add('hidden');
-    this.firmwareProgressContainer?.classList.add('hidden');
     this.firmwareBatchProgress?.classList.add('hidden');
     this.batchFlashPorts.clear();
     this.firmwareModal?.classList.remove('hidden');
@@ -437,21 +430,14 @@ export class ModalView {
   }
 
   async loadSerialPorts() {
-    if (!this.firmwarePortSelect) return;
     try {
       const ports = await api.fetchSerialPorts();
       this.serialPorts = ports;
-      const previousValue = this.firmwarePortSelect.value;
-      if (!ports.length) {
-        this.firmwarePortSelect.innerHTML = '<option value="">Aucun port détecté</option>';
-      } else {
-        this.firmwarePortSelect.innerHTML = ports.map((p) => {
-          const label = `${p.device}${p.likely_satellite ? ' — Satellite détecté' : ''}${p.description ? ` (${p.description})` : ''}`;
-          return `<option value="${p.device}">${label}</option>`;
-        }).join('');
-        const stillPresent = ports.some((p) => p.device === previousValue);
-        const preferred = stillPresent ? previousValue : (ports.find((p) => p.likely_satellite) || ports[0]).device;
-        this.firmwarePortSelect.value = preferred;
+      const satellites = ports.filter((port) => port.likely_satellite);
+      if (this.firmwarePortsSummary) {
+        this.firmwarePortsSummary.textContent = satellites.length
+          ? `${satellites.length} carte${satellites.length > 1 ? 's' : ''} détectée${satellites.length > 1 ? 's' : ''} : ${satellites.map((port) => port.device).join(', ')}`
+          : 'Aucune carte satellite détectée.';
       }
     } catch (err) {
       this.showFirmwareError(err.message);
@@ -461,35 +447,9 @@ export class ModalView {
 
   updateFlashButtonState() {
     const hasFirmware = Boolean(this.selectedFirmwareFilename);
-    const hasPort = Boolean(this.firmwarePortSelect?.value);
     const hasSatellite = this.serialPorts.some((port) => port.likely_satellite);
-    if (this.firmwareFlashBtn) {
-      this.firmwareFlashBtn.disabled = this.isFlashing || !hasFirmware || !hasPort;
-    }
     if (this.firmwareFlashAllBtn) {
       this.firmwareFlashAllBtn.disabled = this.isFlashing || !hasFirmware || !hasSatellite;
-    }
-  }
-
-  async handleFlashFirmware() {
-    const port = this.firmwarePortSelect?.value;
-    const filename = this.selectedFirmwareFilename;
-    if (!port || !filename) return;
-
-    this.firmwareError?.classList.add('hidden');
-    this.isFlashing = true;
-    this.updateFlashButtonState();
-    this.firmwareCloseBtn?.setAttribute('disabled', 'true');
-    this.firmwareProgressContainer?.classList.remove('hidden');
-    this.setFirmwareProgress(0, 'Démarrage...');
-
-    try {
-      await api.flashFirmware(port, filename);
-    } catch (err) {
-      this.isFlashing = false;
-      this.firmwareCloseBtn?.removeAttribute('disabled');
-      this.updateFlashButtonState();
-      this.showFirmwareError(err.message);
     }
   }
 
@@ -503,7 +463,6 @@ export class ModalView {
     this.batchFlashPorts = new Map(ports.map((port) => [port, {
       stage: 'waiting', percent: 0, message: 'En attente...',
     }]));
-    this.firmwareProgressContainer?.classList.add('hidden');
     this.firmwareBatchProgress?.classList.remove('hidden');
     this.renderBatchFlashProgress();
     this.updateFlashButtonState();
@@ -539,26 +498,7 @@ export class ModalView {
 
   /** Called by the app for every 'firmware_flash' WebSocket progress message. */
   handleFirmwareProgress(msg) {
-    if (msg.batch) {
-      this.handleBatchFirmwareProgress(msg);
-      return;
-    }
-
-    if (msg.stage === 'error') {
-      this.isFlashing = false;
-      this.firmwareCloseBtn?.removeAttribute('disabled');
-      this.updateFlashButtonState();
-      this.showFirmwareError(msg.message);
-      return;
-    }
-
-    this.setFirmwareProgress(msg.percent ?? 0, msg.message);
-
-    if (msg.stage === 'done') {
-      this.isFlashing = false;
-      this.firmwareCloseBtn?.removeAttribute('disabled');
-      this.updateFlashButtonState();
-    }
+    if (msg.batch) this.handleBatchFirmwareProgress(msg);
   }
 
   handleBatchFirmwareProgress(msg) {
@@ -579,11 +519,6 @@ export class ModalView {
       this.updateFlashButtonState();
       this.loadSerialPorts();
     }
-  }
-
-  setFirmwareProgress(percent, text) {
-    if (this.firmwareProgressBar) this.firmwareProgressBar.style.width = `${percent}%`;
-    if (this.firmwareProgressText && text) this.firmwareProgressText.textContent = text;
   }
 
   showFirmwareError(msg) {
