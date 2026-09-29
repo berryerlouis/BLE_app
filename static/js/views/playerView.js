@@ -402,7 +402,11 @@ export class PlayerView {
   handleLiveMessage(msg) {
     if (msg.device_id !== state.currentDeviceId) return;
 
-    this.renderHeader();
+    // IMU packets arrive much more often than header values change. Rebuilding the
+    // header (and its icon) for every packet overwhelms mobile browsers.
+    if (msg.type !== 'imu' && msg.type !== 'battery' && msg.type !== 'impact') {
+      this.renderHeader();
+    }
     this.renderKpis();
     this.renderImpactState();
 

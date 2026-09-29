@@ -3,9 +3,13 @@
  */
 export const CONFIG = {
   MAX_LIVE_CHART_POINTS: 3000,    // Keep up to 3,000 live streaming points in browser memory
+  MAX_MOBILE_LIVE_CHART_POINTS: 600, // Limit mobile rendering work while retaining a useful live history
   MAX_SESSION_CHART_POINTS: 50000, // Show entire session history up to 50,000 points
   MAX_SESSION_RENDER_POINTS: 4000, // Decimate a full-session chart above this size so it stays fast to draw
   DEFAULT_VISIBLE_POINTS: 50,     // Live sliding follow window
+  MOBILE_VISIBLE_POINTS: 30,
+  CHART_UPDATE_INTERVAL_MS: 100,
+  MOBILE_CHART_UPDATE_INTERVAL_MS: 250,
   MAX_LOG_LINES: 5000,
   MAX_DOM_LOG_LINES: 300,         // Keep DOM log panel performant
   DEFAULT_IMPACT_THRESHOLD: 8.0,  // in g

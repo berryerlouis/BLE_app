@@ -2,7 +2,7 @@
  * Chart.js Integration & Visualizations
  * High-performance RAF rendering & Full Session Zoom/Pan
  */
-import { CONFIG } from './config.js';
+import { CONFIG } from './config.js?v=20260929-mobile-chart';
 import { calcAccelMagnitude } from './utils.js';
 
 export class ChartManager {
@@ -12,15 +12,21 @@ export class ChartManager {
     this.isSessionMode = false; // true = viewing entire match session, false = live streaming
     this.dirty = false;
     this.rafId = null;
+    this.lastUpdateAt = 0;
+    this.isMobileViewport = window.matchMedia('(max-width: 767px)').matches;
 
     this.startRafLoop();
   }
 
   startRafLoop() {
-    const renderLoop = () => {
-      if (this.dirty && this.charts) {
+    const renderLoop = (timestamp) => {
+      const updateInterval = this.isMobileViewport
+        ? CONFIG.MOBILE_CHART_UPDATE_INTERVAL_MS
+        : CONFIG.CHART_UPDATE_INTERVAL_MS;
+      if (this.dirty && this.charts && timestamp - this.lastUpdateAt >= updateInterval) {
         this.flushChartUpdates();
         this.dirty = false;
+        this.lastUpdateAt = timestamp;
       }
       this.rafId = requestAnimationFrame(renderLoop);
     };
@@ -237,12 +243,15 @@ export class ChartManager {
   applyLiveWindow(chart) {
     const labels = chart.data.labels;
     const x = chart.options.scales.x;
-    if (labels.length <= CONFIG.DEFAULT_VISIBLE_POINTS) {
+    const visiblePoints = this.isMobileViewport
+      ? CONFIG.MOBILE_VISIBLE_POINTS
+      : CONFIG.DEFAULT_VISIBLE_POINTS;
+    if (labels.length <= visiblePoints) {
       delete x.min;
       delete x.max;
       return;
     }
-    x.min = labels[labels.length - CONFIG.DEFAULT_VISIBLE_POINTS];
+    x.min = labels[labels.length - visiblePoints];
     x.max = labels[labels.length - 1];
   }
 
@@ -255,7 +264,11 @@ export class ChartManager {
       }
     });
 
-    const maxLimit = this.isSessionMode ? CONFIG.MAX_SESSION_CHART_POINTS : CONFIG.MAX_LIVE_CHART_POINTS;
+    const maxLimit = this.isSessionMode
+      ? CONFIG.MAX_SESSION_CHART_POINTS
+      : this.isMobileViewport
+        ? CONFIG.MAX_MOBILE_LIVE_CHART_POINTS
+        : CONFIG.MAX_LIVE_CHART_POINTS;
     if (chart.data.labels.length > maxLimit) {
       chart.data.labels.shift();
       chart.data.datasets.forEach((d) => d.data.shift());

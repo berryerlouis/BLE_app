@@ -1,14 +1,14 @@
 /**
  * Main Application Orchestrator
  */
-import { CONFIG } from './config.js';
+import { CONFIG } from './config.js?v=20260929-mobile-chart';
 import { api } from './api.js';
 import { state } from './state.js?v=20260926';
 import { wsClient } from './websocket.js?v=20260926';
-import { ChartManager } from './charts.js';
+import { ChartManager } from './charts.js?v=20260929-mobile-chart';
 import { ModalView } from './views/modalView.js?v=20260926';
 import { DashboardView } from './views/dashboardView.js?v=20260926';
-import { PlayerView } from './views/playerView.js?v=20260929';
+import { PlayerView } from './views/playerView.js?v=20260929-mobile-chart';
 import { progressBar, sessionLoader } from './utils.js';
 
 class App {

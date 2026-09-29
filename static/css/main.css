@@ -2020,6 +2020,15 @@ html, body {
   .player-header-right { width: 100%; gap: 10px; }
 
   .player-identity-title { font-size: 1.15rem; }
+  .player-identity { min-width: 0; }
+  .player-identity-title,
+  .player-identity-mac,
+  .chart-card-title,
+  .history-title,
+  .history-subtitle,
+  .impact-alert-banner div {
+    overflow-wrap: anywhere;
+  }
 
   .player-session-box { width: 100%; }
   .session-select-sm { flex: 1; min-width: 0; }
@@ -2030,6 +2039,17 @@ html, body {
     gap: 12px;
     padding: 12px 14px;
   }
+
+  .impact-alert-banner {
+    align-items: flex-start;
+    padding: 12px 14px;
+    font-size: 0.9rem;
+  }
+
+  .detail-toolbar-bar { padding: 12px; }
+  .toolbar-left, .toolbar-right { gap: 10px; }
+  .toolbar-left .btn, .toolbar-right .btn { flex: 1 1 150px; }
+  .toggle-switch-label { min-height: 40px; }
 
   .chart-card-box { padding: 12px 12px; }
   .chart-card-header { flex-direction: column; align-items: flex-start; gap: 4px; }
@@ -2064,6 +2084,9 @@ html, body {
   .kpi-banner-grid { grid-template-columns: 1fr; }
 
   .brand-title { font-size: 0.95rem; }
+  .brand-icon-wrapper { width: 34px; height: 34px; }
+  .header-actions { width: 100%; justify-content: space-between; margin-left: 0; }
+  .usb-satellite-status { max-width: calc(100vw - 150px); overflow: hidden; text-overflow: ellipsis; }
 
   .header-session-controls { grid-template-columns: 1fr; }
 
