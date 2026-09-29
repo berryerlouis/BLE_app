@@ -214,7 +214,7 @@
               <th>Joueur &amp; Satellite</th>
               <th style="width: 170px;">Pic accélération |a| (50 ms)</th>
               <th style="width: 130px;">Température</th>
-              <th style="width: 140px;">Seuil Commotion</th>
+              <th style="width: 140px;">Seuils d'alerte</th>
               <th style="width: 130px;">Batterie</th>
               <th style="width: 160px;">Dernière Donnée</th>
               <th style="width: 110px; text-align: right;">Action</th>
@@ -295,13 +295,23 @@
             <div class="threshold-card-info">
               <span class="threshold-card-title">Seuil de commotion</span>
               <span class="threshold-card-val"><strong id="threshold-value">--</strong> g</span>
+              <span class="threshold-card-title">Seuil rotation</span>
+              <span class="threshold-card-val"><strong id="rotation-threshold-value">--</strong> °/s</span>
             </div>
             <button id="impact-reset-btn" class="btn btn-secondary btn-sm" type="button">
               <i data-lucide="rotate-ccw"></i>
-              <span>Acquitter Choc</span>
+              <span>Acquitter alertes</span>
             </button>
             <span id="threshold-error" class="error-banner hidden"></span>
           </div>
+        </div>
+      </div>
+
+      <div id="rotation-banner" class="impact-alert-banner hidden">
+        <i data-lucide="rotate-cw"></i>
+        <div>
+          <strong>ALERTE ROTATION DÉTECTÉE :</strong> Vitesse angulaire de
+          <span id="rotation-banner-value" class="font-mono">--</span> °/s dépassant le seuil de sécurité !
         </div>
       </div>
 
@@ -413,7 +423,7 @@
           <div class="chart-card-header">
             <div class="chart-card-title">
               <i data-lucide="compass"></i>
-              <span>Vitesse Angulaire / Gyroscope (dps)</span>
+              <span>Vitesse angulaire |ω|, gyroscope et seuil de rotation (°/s)</span>
             </div>
           </div>
           <div class="chart-canvas-container">
@@ -667,7 +677,7 @@
   </div>
 
   <!-- Main JavaScript App (ES Modules) -->
-  <script type="module" src="static/js/app.js?v=20260929-compact-list"></script>
+  <script type="module" src="static/js/app.js?v=20260929-rotation-threshold"></script>
 </body>
 </html>
 

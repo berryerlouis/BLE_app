@@ -15,6 +15,11 @@ export function calcAccelMagnitude(ax, ay, az) {
   return Math.sqrt(Number(ax) ** 2 + Number(ay) ** 2 + Number(az) ** 2);
 }
 
+export function calcGyroMagnitude(gx, gy, gz) {
+  if (gx === undefined || gy === undefined || gz === undefined) return 0;
+  return Math.sqrt(Number(gx) ** 2 + Number(gy) ** 2 + Number(gz) ** 2);
+}
+
 export function getDeviceDisplayName(device) {
   if (!device) return 'Inconnu';
   if (device.label_name && Number.isInteger(device.label_number)) {
@@ -34,6 +39,12 @@ export function getDeviceThreshold(device) {
   return typeof device?.impact_threshold === 'number'
     ? device.impact_threshold
     : CONFIG.DEFAULT_IMPACT_THRESHOLD;
+}
+
+export function getDeviceRotationThreshold(device) {
+  return typeof device?.rotation_threshold === 'number'
+    ? device.rotation_threshold
+    : CONFIG.DEFAULT_ROTATION_THRESHOLD;
 }
 
 export function formatTimestamp(timestampSec) {

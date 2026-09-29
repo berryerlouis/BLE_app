@@ -16,7 +16,7 @@ from pathlib import Path
 from aiohttp import WSMsgType, web
 
 from . import firmware, update
-from .db import Database, DEFAULT_DB_PATH, DEFAULT_IMPACT_THRESHOLD
+from .db import Database, DEFAULT_DB_PATH, DEFAULT_IMPACT_THRESHOLD, DEFAULT_ROTATION_THRESHOLD
 
 log = logging.getLogger("web_server")
 user_action_log = logging.getLogger("user_actions")
@@ -25,6 +25,7 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 DEFAULT_LOGS_DIR = Path(__file__).resolve().parent.parent / "logs"
 MAX_LOG_ENTRIES_PER_DEVICE = 2000
 MAX_IMPACT_THRESHOLD = 200.0
+MAX_ROTATION_THRESHOLD = 2000.0
 
 
 def create_app(
@@ -53,6 +54,7 @@ def create_app(
     app.router.add_get("/api/devices/{device_id}/log", device_log_handler)
     app.router.add_post("/api/devices/{device_id}/label", set_device_label_handler)
     app.router.add_post("/api/devices/{device_id}/threshold", set_device_threshold_handler)
+    app.router.add_post("/api/devices/{device_id}/rotation-threshold", set_device_rotation_threshold_handler)
     app.router.add_post("/api/devices/{device_id}/impact/reset", reset_device_impact_handler)
 
     # Session (Match) routes
@@ -279,6 +281,39 @@ async def set_device_threshold_handler(request: web.Request) -> web.Response:
     return web.json_response(summary)
 
 
+async def set_device_rotation_threshold_handler(request: web.Request) -> web.Response:
+    device_id = request.match_info["device_id"]
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "Corps JSON invalide"}, status=400)
+
+    try:
+        threshold = float(body.get("threshold"))
+    except (TypeError, ValueError):
+        return web.json_response({"error": "Le seuil doit être un nombre"}, status=400)
+    if not 0 < threshold <= MAX_ROTATION_THRESHOLD:
+        return web.json_response(
+            {"error": f"Le seuil doit être compris entre 0 et {MAX_ROTATION_THRESHOLD:g} deg/s"}, status=400
+        )
+
+    devices = request.app["devices"]
+    summary = devices.setdefault(device_id, {"device_id": device_id, "connected": False, "state": "disconnected"})
+    summary["rotation_threshold"] = threshold
+    await request.app["db"].save_device(device_id, summary)
+
+    await _broadcast_message(
+        request.app,
+        {
+            "type": "rotation_threshold",
+            "device_id": device_id,
+            "rotation_threshold": threshold,
+            "timestamp": time.time(),
+        },
+    )
+    return web.json_response(summary)
+
+
 async def reset_device_impact_handler(request: web.Request) -> web.Response:
     device_id = request.match_info["device_id"]
     devices = request.app["devices"]
@@ -288,6 +323,8 @@ async def reset_device_impact_handler(request: web.Request) -> web.Response:
 
     summary["impact_alert"] = False
     summary.pop("impact_value", None)
+    summary["rotation_alert"] = False
+    summary.pop("rotation_value", None)
     await request.app["db"].save_device(device_id, summary)
 
     await _broadcast_message(
@@ -330,6 +367,8 @@ async def create_session_handler(request: web.Request) -> web.Response:
     for dev in request.app["devices"].values():
         dev["impact_alert"] = False
         dev.pop("impact_value", None)
+        dev["rotation_alert"] = False
+        dev.pop("rotation_value", None)
 
     await _broadcast_message(
         request.app,
@@ -686,11 +725,11 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
     return ws
 
 
-def _update_state(app: web.Application, item: dict) -> dict | None:
-    """Apply an incoming message to the cached state; returns an impact event to broadcast, if any."""
+def _update_state(app: web.Application, item: dict) -> list[dict]:
+    """Apply an incoming message to cached state and return any threshold alert events."""
     device_id = item.get("device_id")
     if not device_id:
-        return None
+        return []
 
     devices = app["devices"]
     summary = devices.setdefault(
@@ -705,13 +744,14 @@ def _update_state(app: web.Application, item: dict) -> dict | None:
     if not is_historical:
         summary["last_update"] = item.get("timestamp")
     summary.setdefault("impact_threshold", DEFAULT_IMPACT_THRESHOLD)
+    summary.setdefault("rotation_threshold", DEFAULT_ROTATION_THRESHOLD)
 
     # Attach current session_id to incoming item
     active_session = app.get("active_session")
     if active_session:
         item["session_id"] = active_session["id"]
 
-    impact_event = None
+    alert_events = []
     msg_type = item["type"]
     if msg_type == "status":
         summary["connected"] = item["connected"]
@@ -726,7 +766,7 @@ def _update_state(app: web.Application, item: dict) -> dict | None:
         if magnitude >= summary["impact_threshold"] and not summary.get("impact_alert"):
             summary["impact_alert"] = True
             summary["impact_value"] = magnitude
-            impact_event = {
+            alert_events.append({
                 "type": "impact",
                 "device_id": device_id,
                 "session_id": active_session["id"] if active_session else None,
@@ -734,7 +774,20 @@ def _update_state(app: web.Application, item: dict) -> dict | None:
                 "impact_threshold": summary["impact_threshold"],
                 "timestamp": item.get("timestamp", time.time()),
                 "historical": is_historical,
-            }
+            })
+        rotation_magnitude = math.sqrt(item["gX"] ** 2 + item["gY"] ** 2 + item["gZ"] ** 2)
+        if rotation_magnitude >= summary["rotation_threshold"] and not summary.get("rotation_alert"):
+            summary["rotation_alert"] = True
+            summary["rotation_value"] = rotation_magnitude
+            alert_events.append({
+                "type": "rotation",
+                "device_id": device_id,
+                "session_id": active_session["id"] if active_session else None,
+                "rotation_value": rotation_magnitude,
+                "rotation_threshold": summary["rotation_threshold"],
+                "timestamp": item.get("timestamp", time.time()),
+                "historical": is_historical,
+            })
     elif msg_type == "battery":
         if not is_historical:
             if "voltage" in item:
@@ -755,9 +808,8 @@ def _update_state(app: web.Application, item: dict) -> dict | None:
 
     log_buffer = app["logs"].setdefault(device_id, deque(maxlen=MAX_LOG_ENTRIES_PER_DEVICE))
     log_buffer.append(item)
-    if impact_event:
-        log_buffer.append(impact_event)
-    return impact_event
+    log_buffer.extend(alert_events)
+    return alert_events
 
 
 def _refresh_firmware_status(summary: dict) -> None:
@@ -889,7 +941,7 @@ async def _broadcast_loop(app: web.Application) -> None:
     queue: "asyncio.Queue[dict]" = app["data_queue"]
     while True:
         item = await queue.get()
-        impact_event = _update_state(app, item)
+        alert_events = _update_state(app, item)
         device_id = item.get("device_id")
         if device_id:
             _persist_state(app, device_id, item)
@@ -902,10 +954,10 @@ async def _broadcast_loop(app: web.Application) -> None:
                 "firmware_update_available": summary.get("firmware_update_available", False),
             }
         await _broadcast_message(app, broadcast_item)
-        if impact_event:
+        for alert_event in alert_events:
             if device_id:
-                _persist_state(app, device_id, impact_event)
-            await _broadcast_message(app, impact_event)
+                _persist_state(app, device_id, alert_event)
+            await _broadcast_message(app, alert_event)
 
 
 async def _start_broadcaster(app: web.Application) -> None:

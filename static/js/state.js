@@ -1,7 +1,7 @@
 /**
  * Application State Store
  */
-import { CONFIG } from './config.js';
+import { CONFIG } from './config.js?v=20260929-rotation-threshold';
 
 class StateStore {
   constructor() {
@@ -179,6 +179,7 @@ class StateStore {
       connected: false,
       state: 'disconnected',
       impact_threshold: CONFIG.DEFAULT_IMPACT_THRESHOLD,
+      rotation_threshold: CONFIG.DEFAULT_ROTATION_THRESHOLD,
     };
 
     const isHistorical = Boolean(msg.historical);
@@ -230,6 +231,8 @@ class StateStore {
       updated.label_number = msg.label_number;
     } else if (msg.type === 'threshold') {
       updated.impact_threshold = msg.impact_threshold;
+    } else if (msg.type === 'rotation_threshold') {
+      updated.rotation_threshold = msg.rotation_threshold;
     } else if (msg.type === 'impact') {
       updated.impact_alert = true;
       updated.impact_value = msg.impact_value;
@@ -238,6 +241,12 @@ class StateStore {
     } else if (msg.type === 'impact_reset') {
       updated.impact_alert = false;
       updated.impact_value = undefined;
+      updated.rotation_alert = false;
+      updated.rotation_value = undefined;
+    } else if (msg.type === 'rotation') {
+      updated.rotation_alert = true;
+      updated.rotation_value = msg.rotation_value;
+      updated.rotation_threshold = msg.rotation_threshold;
     } else if (msg.type === 'sync_status') {
       syncCompleted = existing.state === 'backfilling' && !msg.backfilling;
       updated.state = msg.backfilling ? 'backfilling' : syncCompleted ? 'subscribed' : existing.state;

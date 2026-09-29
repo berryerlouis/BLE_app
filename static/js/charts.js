@@ -2,8 +2,8 @@
  * Chart.js Integration & Visualizations
  * High-performance RAF rendering & Full Session Zoom/Pan
  */
-import { CONFIG } from './config.js?v=20260929-graph-history';
-import { calcAccelMagnitude } from './utils.js';
+import { CONFIG } from './config.js?v=20260929-rotation-threshold';
+import { calcAccelMagnitude, calcGyroMagnitude } from './utils.js?v=20260929-rotation-threshold';
 
 export class ChartManager {
   constructor() {
@@ -139,9 +139,11 @@ export class ChartManager {
     ];
 
     const gyroDatasets = [
+      { label: '|ω|', color: '#ffffff', borderWidth: 2.2 },
       { label: 'gX', color: CONFIG.COLORS.chartGyroX, borderWidth: 1.8 },
       { label: 'gY', color: CONFIG.COLORS.chartGyroY, borderWidth: 1.8 },
       { label: 'gZ', color: CONFIG.COLORS.chartGyroZ, borderWidth: 1.8 },
+      { label: 'Seuil rotation', color: CONFIG.COLORS.chartThreshold, borderWidth: 1.8, borderDash: [6, 4] },
     ];
 
     const tempDatasets = [
@@ -165,7 +167,7 @@ export class ChartManager {
    * Loads a full match session into the charts in a single high-speed pass.
    * Resets scales to show the entire session timeline from start to finish.
    */
-  loadFullSession(logs, currentThreshold, isHistorical = true) {
+  loadFullSession(logs, currentThreshold, currentRotationThreshold, isHistorical = true) {
     if (!this.charts) return;
 
     this.isSessionMode = isHistorical;
@@ -174,10 +176,11 @@ export class ChartManager {
 
     const labels = [];
     const accelData = { mag: [], ax: [], ay: [], az: [], threshold: [] };
-    const gyroData = { gx: [], gy: [], gz: [] };
+    const gyroData = { mag: [], gx: [], gy: [], gz: [], threshold: [] };
     const tempData = [];
 
     const threshold = currentThreshold ?? CONFIG.DEFAULT_IMPACT_THRESHOLD;
+    const rotationThreshold = currentRotationThreshold ?? CONFIG.DEFAULT_ROTATION_THRESHOLD;
 
     // Logs are stored in arrival order, not recording order: a backfilled (historical)
     // sample replayed after a reconnect carries an older timestamp than the live samples
@@ -206,6 +209,8 @@ export class ChartManager {
       gyroData.gx.push(msg.gX);
       gyroData.gy.push(msg.gY);
       gyroData.gz.push(msg.gZ);
+      gyroData.mag.push(calcGyroMagnitude(msg.gX, msg.gY, msg.gZ));
+      gyroData.threshold.push(rotationThreshold);
 
       tempData.push(msg.temp);
     }
@@ -222,9 +227,11 @@ export class ChartManager {
     // Populate Gyro Chart
     const cGyro = this.charts.gyro;
     cGyro.data.labels = [...labels];
-    cGyro.data.datasets[0].data = gyroData.gx;
-    cGyro.data.datasets[1].data = gyroData.gy;
-    cGyro.data.datasets[2].data = gyroData.gz;
+    cGyro.data.datasets[0].data = gyroData.mag;
+    cGyro.data.datasets[1].data = gyroData.gx;
+    cGyro.data.datasets[2].data = gyroData.gy;
+    cGyro.data.datasets[3].data = gyroData.gz;
+    cGyro.data.datasets[4].data = gyroData.threshold;
 
     // Populate Temp Chart
     const cTemp = this.charts.temp;
@@ -282,7 +289,7 @@ export class ChartManager {
     }
   }
 
-  feedImuData(msg, currentThreshold) {
+  feedImuData(msg, currentThreshold, currentRotationThreshold) {
     if (!this.charts || msg.type !== 'imu') return;
     const t = new Date((msg.timestamp ?? Date.now() / 1000) * 1000).toLocaleTimeString([], {
       hour: '2-digit',
@@ -291,9 +298,10 @@ export class ChartManager {
     });
     const mag = calcAccelMagnitude(msg.aX, msg.aY, msg.aZ);
     const threshold = currentThreshold ?? CONFIG.DEFAULT_IMPACT_THRESHOLD;
+    const rotationThreshold = currentRotationThreshold ?? CONFIG.DEFAULT_ROTATION_THRESHOLD;
 
     this.pushPoint(this.charts.accel, t, [mag, msg.aX, msg.aY, msg.aZ, threshold]);
-    this.pushPoint(this.charts.gyro, t, [msg.gX, msg.gY, msg.gZ]);
+    this.pushPoint(this.charts.gyro, t, [calcGyroMagnitude(msg.gX, msg.gY, msg.gZ), msg.gX, msg.gY, msg.gZ, rotationThreshold]);
     this.pushPoint(this.charts.temp, t, [msg.temp]);
 
     this.dirty = true;
@@ -314,6 +322,15 @@ export class ChartManager {
     if (thresholdDataset) {
       thresholdDataset.data = thresholdDataset.data.map(() => threshold);
       this.charts.accel.update('none');
+    }
+  }
+
+  updateRotationThreshold(threshold) {
+    if (!this.charts?.gyro) return;
+    const thresholdDataset = this.charts.gyro.data.datasets[4];
+    if (thresholdDataset) {
+      thresholdDataset.data = thresholdDataset.data.map(() => threshold);
+      this.charts.gyro.update('none');
     }
   }
 

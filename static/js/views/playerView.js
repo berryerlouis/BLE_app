@@ -1,13 +1,14 @@
 /**
  * Player Detail View (Second Page)
  */
-import { api } from '../api.js?v=20260929-graph-history';
-import { state } from '../state.js?v=20260929-mobile-status';
+import { api } from '../api.js?v=20260929-rotation-threshold';
+import { state } from '../state.js?v=20260929-rotation-threshold';
 import {
   fmt,
   calcAccelMagnitude,
   getDeviceDisplayName,
   getDeviceThreshold,
+  getDeviceRotationThreshold,
   formatDateTime,
   getBatteryStatus,
   getRssiStatus,
@@ -15,7 +16,7 @@ import {
   escapeHtml,
   progressBar,
   sessionLoader,
-} from '../utils.js';
+} from '../utils.js?v=20260929-rotation-threshold';
 
 export class PlayerView {
   constructor(chartManager, onBack, onEditLabel, onSelectSession) {
@@ -46,9 +47,12 @@ export class PlayerView {
 
     // Threshold & Impact elements
     this.thresholdValue = document.getElementById('threshold-value');
+    this.rotationThresholdValue = document.getElementById('rotation-threshold-value');
     this.impactResetBtn = document.getElementById('impact-reset-btn');
     this.impactBanner = document.getElementById('impact-banner');
     this.impactBannerValue = document.getElementById('impact-banner-value');
+    this.rotationBanner = document.getElementById('rotation-banner');
+    this.rotationBannerValue = document.getElementById('rotation-banner-value');
     this.thresholdError = document.getElementById('threshold-error');
 
     // KPI Cards
@@ -286,8 +290,9 @@ export class PlayerView {
   rebuildCharts() {
     const dev = state.getCurrentDevice();
     const threshold = getDeviceThreshold(dev);
+    const rotationThreshold = getDeviceRotationThreshold(dev);
     const isHistorical = state.isViewingHistorical();
-    this.chartManager.loadFullSession(state.currentDeviceLog, threshold, isHistorical);
+    this.chartManager.loadFullSession(state.currentDeviceLog, threshold, rotationThreshold, isHistorical);
   }
 
   renderHeader() {
@@ -323,6 +328,9 @@ export class PlayerView {
 
     if (this.thresholdValue) {
       this.thresholdValue.textContent = `${fmt(getDeviceThreshold(dev), 1)}`;
+    }
+    if (this.rotationThresholdValue) {
+      this.rotationThresholdValue.textContent = `${fmt(getDeviceRotationThreshold(dev), 0)}`;
     }
   }
 
@@ -425,6 +433,32 @@ export class PlayerView {
         this.impactBannerValue.textContent = fmt(peakImpact, 2);
       }
     }
+
+    const rotationThreshold = getDeviceRotationThreshold(dev);
+    let hasRotationAlert = Boolean(dev?.rotation_alert);
+    let peakRotation = dev?.rotation_value || 0;
+    if (isHistorical) {
+      hasRotationAlert = false;
+      peakRotation = 0;
+      for (const item of logs) {
+        if (item.type === 'rotation') {
+          hasRotationAlert = true;
+          peakRotation = Math.max(peakRotation, Number(item.rotation_value) || 0);
+        } else if (item.type === 'imu') {
+          const rotation = Math.sqrt(item.gX ** 2 + item.gY ** 2 + item.gZ ** 2);
+          if (rotation >= rotationThreshold) {
+            hasRotationAlert = true;
+            peakRotation = Math.max(peakRotation, rotation);
+          }
+        }
+      }
+    }
+    if (this.rotationBanner) {
+      this.rotationBanner.classList.toggle('hidden', !hasRotationAlert);
+      if (hasRotationAlert && this.rotationBannerValue) {
+        this.rotationBannerValue.textContent = fmt(peakRotation, 1);
+      }
+    }
   }
 
   handleLiveMessage(msg) {
@@ -432,7 +466,7 @@ export class PlayerView {
 
     // IMU packets arrive much more often than header values change. Rebuilding the
     // header (and its icon) for every packet overwhelms mobile browsers.
-    if (msg.type !== 'imu' && msg.type !== 'battery' && msg.type !== 'impact') {
+    if (msg.type !== 'imu' && msg.type !== 'battery' && msg.type !== 'impact' && msg.type !== 'rotation') {
       this.renderHeader();
     }
     this.renderKpis();
@@ -445,9 +479,11 @@ export class PlayerView {
     // they're still stored in the log/DB and show up when a full session is (re)loaded.
     if (msg.type === 'imu' && !msg.historical) {
       const dev = state.getCurrentDevice();
-      this.chartManager.feedImuData(msg, getDeviceThreshold(dev));
+      this.chartManager.feedImuData(msg, getDeviceThreshold(dev), getDeviceRotationThreshold(dev));
     } else if (msg.type === 'threshold') {
       this.chartManager.updateThreshold(msg.impact_threshold);
+    } else if (msg.type === 'rotation_threshold') {
+      this.chartManager.updateRotationThreshold(msg.rotation_threshold);
     }
   }
 

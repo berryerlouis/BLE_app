@@ -17,6 +17,7 @@ from pathlib import Path
 DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "data.db"
 MAX_LOG_ENTRIES_PER_DEVICE = 2000
 DEFAULT_IMPACT_THRESHOLD = 8.0  # g, magnitude of the acceleration vector
+DEFAULT_ROTATION_THRESHOLD = 200.0  # degrees/s, magnitude of the gyro vector
 
 
 class Database:
@@ -46,7 +47,9 @@ class Database:
                     label_name TEXT,
                     label_number INTEGER,
                     impact_threshold REAL,
-                    impact_alert INTEGER
+                    impact_alert INTEGER,
+                    rotation_threshold REAL,
+                    rotation_alert INTEGER
                 );
 
                 CREATE TABLE IF NOT EXISTS logs (
@@ -74,6 +77,10 @@ class Database:
                 self._conn.execute("ALTER TABLE devices ADD COLUMN impact_threshold REAL")
             if "impact_alert" not in device_cols:
                 self._conn.execute("ALTER TABLE devices ADD COLUMN impact_alert INTEGER")
+            if "rotation_threshold" not in device_cols:
+                self._conn.execute("ALTER TABLE devices ADD COLUMN rotation_threshold REAL")
+            if "rotation_alert" not in device_cols:
+                self._conn.execute("ALTER TABLE devices ADD COLUMN rotation_alert INTEGER")
 
             log_cols = {row["name"] for row in self._conn.execute("PRAGMA table_info(logs)")}
             if "session_id" not in log_cols:
@@ -98,6 +105,7 @@ class Database:
             self._conn.commit()
             self._backfill_label_columns()
             self._backfill_impact_columns()
+            self._backfill_rotation_columns()
             self._backfill_log_columns()
 
     def _get_active_session_sync(self) -> dict | None:
@@ -156,6 +164,17 @@ class Database:
                     row["device_id"],
                 ),
             )
+        self._conn.commit()
+
+    def _backfill_rotation_columns(self) -> None:
+        """Initialize rotation settings for devices created before gyro alerts existed."""
+        self._conn.execute(
+            "UPDATE devices SET rotation_threshold = ? WHERE rotation_threshold IS NULL",
+            (DEFAULT_ROTATION_THRESHOLD,),
+        )
+        self._conn.execute(
+            "UPDATE devices SET rotation_alert = 0 WHERE rotation_alert IS NULL"
+        )
         self._conn.commit()
 
     def _backfill_label_columns(self) -> None:
@@ -341,7 +360,8 @@ class Database:
         with self._lock:
             devices = {}
             for row in self._conn.execute(
-                "SELECT device_id, summary, label_name, label_number, impact_threshold, impact_alert FROM devices"
+                "SELECT device_id, summary, label_name, label_number, impact_threshold, impact_alert, "
+                "rotation_threshold, rotation_alert FROM devices"
             ):
                 summary = json.loads(row["summary"])
                 if row["label_name"] is not None:
@@ -352,6 +372,10 @@ class Database:
                     summary["impact_threshold"] = row["impact_threshold"]
                 if row["impact_alert"] is not None:
                     summary["impact_alert"] = bool(row["impact_alert"])
+                if row["rotation_threshold"] is not None:
+                    summary["rotation_threshold"] = row["rotation_threshold"]
+                if row["rotation_alert"] is not None:
+                    summary["rotation_alert"] = bool(row["rotation_alert"])
                 devices[row["device_id"]] = summary
 
             logs: dict[str, list[dict]] = {}
@@ -371,12 +395,13 @@ class Database:
     def _save_device_sync(self, device_id: str, summary: dict) -> None:
         with self._lock:
             self._conn.execute(
-                "INSERT INTO devices (device_id, summary, label_name, label_number, impact_threshold, impact_alert) "
-                "VALUES (?, ?, ?, ?, ?, ?) "
+                "INSERT INTO devices (device_id, summary, label_name, label_number, impact_threshold, impact_alert, rotation_threshold, rotation_alert) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT(device_id) DO UPDATE SET "
                 "summary = excluded.summary, label_name = excluded.label_name, "
                 "label_number = excluded.label_number, impact_threshold = excluded.impact_threshold, "
-                "impact_alert = excluded.impact_alert",
+                "impact_alert = excluded.impact_alert, rotation_threshold = excluded.rotation_threshold, "
+                "rotation_alert = excluded.rotation_alert",
                 (
                     device_id,
                     json.dumps(summary),
@@ -384,6 +409,8 @@ class Database:
                     summary.get("label_number"),
                     summary.get("impact_threshold", DEFAULT_IMPACT_THRESHOLD),
                     int(bool(summary.get("impact_alert"))),
+                    summary.get("rotation_threshold", DEFAULT_ROTATION_THRESHOLD),
+                    int(bool(summary.get("rotation_alert"))),
                 ),
             )
             self._conn.commit()

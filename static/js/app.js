@@ -1,15 +1,15 @@
 /**
  * Main Application Orchestrator
  */
-import { CONFIG } from './config.js?v=20260929-mobile-chart';
-import { api } from './api.js';
-import { state } from './state.js?v=20260929-mobile-status';
+import { CONFIG } from './config.js?v=20260929-rotation-threshold';
+import { api } from './api.js?v=20260929-rotation-threshold';
+import { state } from './state.js?v=20260929-rotation-threshold';
 import { wsClient } from './websocket.js?v=20260929-mobile-status';
-import { ChartManager } from './charts.js?v=20260929-graph-history';
+import { ChartManager } from './charts.js?v=20260929-rotation-threshold';
 import { ModalView } from './views/modalView.js?v=20260929-mobile-status';
-import { DashboardView } from './views/dashboardView.js?v=20260929-compact-list';
-import { PlayerView } from './views/playerView.js?v=20260929-graph-history';
-import { progressBar, sessionLoader } from './utils.js';
+import { DashboardView } from './views/dashboardView.js?v=20260929-rotation-threshold';
+import { PlayerView } from './views/playerView.js?v=20260929-rotation-threshold';
+import { progressBar, sessionLoader } from './utils.js?v=20260929-rotation-threshold';
 
 class App {
   constructor() {

@@ -40,6 +40,17 @@ export const api = {
     return data;
   },
 
+  async updateDeviceRotationThreshold(deviceId, threshold) {
+    const res = await fetch(`/api/devices/${encodeURIComponent(deviceId)}/rotation-threshold`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ threshold }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erreur lors de la mise à jour du seuil de rotation');
+    return data;
+  },
+
   async resetDeviceImpact(deviceId) {
     const res = await fetch(`/api/devices/${encodeURIComponent(deviceId)}/impact/reset`, {
       method: 'POST',
