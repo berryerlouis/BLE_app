@@ -177,6 +177,18 @@ export class PlayerView {
     // }).join('');
   }
 
+  updateHistoricalSessionBanner() {
+    const isHistorical = state.isViewingHistorical();
+    const currentSession = state.getSelectedSession();
+    if (!this.historyBanner) return;
+
+    this.historyBanner.classList.toggle('hidden', !isHistorical);
+    if (isHistorical && currentSession) {
+      if (this.historySessionName) this.historySessionName.textContent = currentSession.name;
+      if (this.historySessionDate) this.historySessionDate.textContent = formatDateTime(currentSession.start_time);
+    }
+  }
+
   async open(deviceId, sessionId = null) {
     if (sessionId !== null) {
       state.setSelectedSessionId(sessionId);
@@ -195,14 +207,7 @@ export class PlayerView {
     this.renderSessionOptions();
     this.renderHeader();
     
-    // Show/hide historical session banner
-    if (this.historyBanner) {
-      this.historyBanner.classList.toggle('hidden', !isHistorical);
-      if (isHistorical && currentSession) {
-        if (this.historySessionName) this.historySessionName.textContent = currentSession.name;
-        if (this.historySessionDate) this.historySessionDate.textContent = formatDateTime(currentSession.start_time);
-      }
-    }
+    this.updateHistoricalSessionBanner();
     
     if (this.realtimeToggle) {
       this.realtimeToggle.checked = !isHistorical;

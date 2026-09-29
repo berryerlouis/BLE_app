@@ -19,12 +19,14 @@ import {
 } from '../utils.js';
 
 export class DashboardView {
-  constructor(onOpenPlayer, onEditLabel, onNewSession, onEndSession, onSelectSession, onFlashFirmware) {
+  constructor(onOpenPlayer, onEditLabel, onNewSession, onEndSession, onSelectSession, onRenameSession, onDeleteSession, onFlashFirmware) {
     this.onOpenPlayer = onOpenPlayer;
     this.onEditLabel = onEditLabel;
     this.onNewSession = onNewSession;
     this.onEndSession = onEndSession;
     this.onSelectSession = onSelectSession;
+    this.onRenameSession = onRenameSession;
+    this.onDeleteSession = onDeleteSession;
     this.onFlashFirmware = onFlashFirmware;
 
     this.container = document.getElementById('devices-view');
@@ -35,6 +37,8 @@ export class DashboardView {
     this.globalSessionSelect = document.getElementById('global-session-select');
     this.newSessionBtn = document.getElementById('new-session-btn');
     this.endSessionBtn = document.getElementById('end-session-btn');
+    this.renameSessionBtn = document.getElementById('rename-session-btn');
+    this.deleteSessionBtn = document.getElementById('delete-session-btn');
     this.matchStatusCard = document.getElementById('match-status-card');
     this.matchStatusLabel = document.getElementById('match-status-label');
     this.matchStatusTimer = document.getElementById('match-status-timer');
@@ -80,6 +84,14 @@ export class DashboardView {
 
     this.endSessionBtn?.addEventListener('click', () => {
       if (this.onEndSession) this.onEndSession();
+    });
+
+    this.renameSessionBtn?.addEventListener('click', () => {
+      if (this.onRenameSession) this.onRenameSession();
+    });
+
+    this.deleteSessionBtn?.addEventListener('click', () => {
+      if (this.onDeleteSession) this.onDeleteSession();
     });
 
     // Search input
@@ -191,6 +203,8 @@ export class DashboardView {
     // Historical banner state
     const isHistorical = state.isViewingHistorical();
     const currentSession = state.getSelectedSession();
+    this.renameSessionBtn?.classList.toggle('hidden', !isHistorical);
+    this.deleteSessionBtn?.classList.toggle('hidden', !isHistorical);
 
     if (this.dashHistoryBanner) {
       this.dashHistoryBanner.classList.toggle('hidden', !isHistorical);

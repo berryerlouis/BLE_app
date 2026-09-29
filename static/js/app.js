@@ -24,6 +24,8 @@ class App {
       () => this.modalView.showSessionModal(),
       () => this.modalView.showEndSessionModal(),
       (sessionId) => this.switchSession(sessionId),
+      () => this.renameSelectedSession(),
+      () => this.deleteSelectedSession(),
       (version) => this.modalView.showFirmwareModal(version)
     );
 
@@ -120,6 +122,7 @@ class App {
       this.dashboardView.renderSessionSelector();
       if (state.currentDeviceId) {
         this.playerView.renderSessionOptions();
+        this.playerView.updateHistoricalSessionBanner();
       }
     } else if (event === 'selected_session_changed') {
       this.dashboardView.renderSessionSelector();
@@ -207,6 +210,51 @@ class App {
       sessionLoader.hide();
     }
     progressBar.complete();
+  }
+
+  async renameSelectedSession() {
+    const session = state.getSelectedSession();
+    if (!session || !state.isViewingHistorical()) return;
+
+    const name = window.prompt('Nouveau nom du match :', session.name);
+    if (name === null) return;
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      window.alert('Le nom du match est requis.');
+      return;
+    }
+
+    try {
+      const updatedSession = await api.updateSession(session.id, { name: trimmedName });
+      state.sessions = state.sessions.map((item) => (item.id === updatedSession.id ? { ...item, ...updatedSession } : item));
+      state.notify('sessions_updated', { sessions: state.sessions, activeSession: state.activeSession });
+    } catch (err) {
+      console.error('Failed to rename session:', err);
+      window.alert(`Impossible de renommer le match : ${err.message}`);
+    }
+  }
+
+  async deleteSelectedSession() {
+    const session = state.getSelectedSession();
+    if (!session || !state.isViewingHistorical()) return;
+
+    const confirmed = window.confirm(
+      `Supprimer définitivement « ${session.name} » et toutes ses données ? Cette action est irréversible.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const result = await api.deleteSession(session.id);
+      state.handleWebSocketMessage({
+        type: 'session_deleted',
+        session_id: session.id,
+        active_session: result.active_session,
+      });
+      await this.switchSession(null);
+    } catch (err) {
+      console.error('Failed to delete session:', err);
+      window.alert(`Impossible de supprimer le match : ${err.message}`);
+    }
   }
 
   showDashboardView() {

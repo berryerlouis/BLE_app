@@ -101,6 +101,17 @@ export const api = {
     return data;
   },
 
+  async updateSession(sessionId, updates) {
+    const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erreur mise à jour de la session');
+    return data;
+  },
+
   async fetchSessionSummary(sessionId) {
     const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/summary`);
     if (!res.ok) throw new Error(`Erreur récupération résumé de match (${res.status})`);
