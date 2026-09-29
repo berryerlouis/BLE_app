@@ -1903,11 +1903,14 @@ html, body {
     gap: 8px;
   }
 
-  .match-status-card { grid-column: 1 / -1; justify-content: center; }
+  .match-status-card { grid-column: 1 / -1; justify-content: center; min-width: 0; }
+  .match-status-label { max-width: min(240px, 65vw); }
   .session-selector-box { grid-column: 1 / -1; }
   .header-session-controls .btn { width: 100%; justify-content: center; }
 
   .header-actions { margin-left: auto; }
+  .header-actions .btn span { display: none; }
+  .header-actions .btn { min-width: 40px; padding-inline: 10px; }
   .server-status-pill,
   .usb-satellite-status { padding: 5px 10px; font-size: 0.76rem; }
 
@@ -1926,7 +1929,11 @@ html, body {
   .kpi-label { font-size: 0.68rem; letter-spacing: 0.02em; }
   .kpi-value { font-size: 1.1rem; }
 
-  /* Card-style rows */
+  .dashboard-toolbar { gap: 10px; }
+  .search-input { min-height: 42px; }
+  .filter-btn { min-height: 38px; padding-inline: 8px; }
+
+  /* Compact satellite list: tap an item to open its full telemetry view. */
   .table-container {
     background: transparent;
     border: none;
@@ -1948,14 +1955,16 @@ html, body {
   }
 
   #devices-table tr.device-row {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 12px;
+    align-items: center;
     background: var(--bg-card);
     border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-lg);
-    padding: 12px 14px;
-    margin-bottom: 12px;
-    box-shadow: var(--shadow-md);
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    box-shadow: var(--shadow-sm);
   }
 
   #devices-table tr.device-row.impact-row {
@@ -1972,6 +1981,20 @@ html, body {
     font-size: 0.86rem;
   }
 
+  #devices-table td:not(.col-player):not(.col-actions) {
+    min-width: 0;
+  }
+
+  #devices-table td.col-g {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  #devices-table td.col-g::before {
+    align-self: center;
+  }
+
   #devices-table td::before {
     content: attr(data-label);
     font-size: 0.7rem;
@@ -1982,31 +2005,31 @@ html, body {
     flex-shrink: 0;
   }
 
-  #devices-table td.col-player,
-  #devices-table td.col-actions {
+  #devices-table td.col-player {
     display: block;
   }
 
   #devices-table td.col-player::before,
-  #devices-table td.col-actions::before {
+  #devices-table td.col-status::before {
     content: none;
   }
 
   #devices-table td.col-player {
-    order: -1;
-    padding-bottom: 10px;
-    margin-bottom: 6px;
-    border-bottom: 1px solid var(--border-subtle);
+    grid-column: 1;
+    grid-row: 1;
+    padding: 0;
+    margin: 0;
+    border: 0;
   }
 
   #devices-table td.col-player .player-cell-content {
-    align-items: flex-start;
-    gap: 12px;
+    align-items: center;
+    gap: 10px;
   }
 
   #devices-table td.col-player .player-avatar {
-    width: 42px;
-    height: 42px;
+    width: 36px;
+    height: 36px;
     border-radius: var(--radius-md);
   }
 
@@ -2033,23 +2056,70 @@ html, body {
   #devices-table td.col-player .edit-player-btn { flex-shrink: 0; }
 
   #devices-table td.col-player .player-mac {
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    padding: 3px 6px;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    background: var(--bg-input);
+    display: none;
   }
 
-  #devices-table td.col-actions .btn {
-    width: 100%;
-    justify-content: center;
-    margin-top: 6px;
+  #devices-table td.col-player .firmware-version-badge {
+    align-self: flex-start;
+    margin-top: 2px;
   }
 
-  #devices-table td.col-status { padding-top: 0; }
+  #devices-table td.col-status {
+    grid-column: 2;
+    grid-row: 1;
+    padding: 0;
+    justify-self: end;
+  }
+
+  #devices-table td.col-status .rssi-badge {
+    display: none;
+  }
+
+  #devices-table td.col-status .status-text {
+    font-size: 0.74rem;
+  }
+
+  #devices-table td.col-g {
+    grid-column: 1;
+    grid-row: 2;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  #devices-table td.col-temp,
+  #devices-table td.col-battery,
+  #devices-table td.col-lastseen,
+  #devices-table td.col-actions {
+    display: none;
+  }
+
+  #devices-table td.col-threshold {
+    display: flex;
+    grid-column: 2;
+    grid-row: 2;
+    align-self: end;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-subtle);
+    gap: 6px;
+  }
+
+  #devices-table td.col-threshold::before {
+    content: "Seuil";
+    font-size: 0.68rem;
+  }
+
+  #devices-table td.col-threshold .threshold-input-wrapper {
+    justify-content: flex-end;
+  }
+
+  #devices-table td.col-threshold .row-threshold-input {
+    width: 48px;
+    min-width: 48px;
+    padding-inline: 4px;
+    text-align: right;
+  }
 
   #no-devices-row td { display: block; text-align: center; }
   #no-devices-row td::before { content: none; }
@@ -2125,7 +2195,10 @@ html, body {
    Small smartphones
    -------------------------------------------------------------------------- */
 @media (max-width: 420px) {
-  .kpi-banner-grid { grid-template-columns: 1fr; }
+  .kpi-banner-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi-card { padding: 10px; }
+  .kpi-icon-box { width: 30px; height: 30px; }
+  .kpi-label { font-size: 0.62rem; }
 
   .brand-title { font-size: 0.95rem; }
   .brand-icon-wrapper { width: 34px; height: 34px; }
@@ -2133,6 +2206,14 @@ html, body {
   .usb-satellite-status { max-width: calc(100vw - 150px); overflow: hidden; text-overflow: ellipsis; }
 
   .header-session-controls { grid-template-columns: 1fr; }
+
+  .header-session-controls .btn {
+    min-height: 42px;
+  }
+
+  #devices-table tr.device-row { padding: 12px; }
+  #devices-table td { gap: 8px; }
+  #devices-table td::before { font-size: 0.66rem; }
 
   .toolbar-controls { flex-direction: column; align-items: stretch; }
   .filter-group { width: 100%; }

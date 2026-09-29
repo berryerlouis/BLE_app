@@ -304,7 +304,7 @@ export class DashboardView {
       ? `Mise à jour disponible : v${escapeHtml(d.latest_firmware_version)}`
       : 'Version du firmware du satellite';
     return `
-      <span class="firmware-version-badge ${hasUpdate ? 'update-available' : ''} ${hasVersion ? '' : 'hidden'}"
+      <span class="firmware-version-badge ${hasUpdate ? 'update-available' : ''}"
             ${hasUpdate ? `data-action="flash-firmware" data-device-id="${mac}" data-firmware-version="${escapeHtml(d.latest_firmware_version || '')}"` : ''}
             title="${title}">
         <i data-lucide="${hasUpdate ? 'arrow-up-circle' : 'cpu'}"></i>
