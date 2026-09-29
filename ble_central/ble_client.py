@@ -318,6 +318,21 @@ class DeviceManager:
                     }
                 )
 
+            def rssi_handler(_sender, data: bytearray) -> None:
+                payload = bytes(data)
+                if len(payload) != 2:
+                    log.warning("Invalid RSSI data from %s (%s): %d bytes", name, address, len(payload))
+                    return
+                self._queue.put_nowait(
+                    {
+                        "type": "rssi",
+                        "rssi": struct.unpack("<h", payload)[0],
+                        "device_id": address,
+                        "device_name": name,
+                        "timestamp": time.time(),
+                    }
+                )
+
             def imu_history_handler(_sender, data: bytearray) -> None:
                 try:
                     item = ImuHistorySample.from_bytes(bytes(data)).to_dict()
@@ -360,6 +375,11 @@ class DeviceManager:
                 await client.start_notify(self._cfg["battery_level_char_uuid"], battery_level_handler)
             except BleakError:
                 log.info("Standard battery characteristic is unavailable for %s (%s)", name, address)
+
+            try:
+                await client.start_notify(self._cfg["rssi_char_uuid"], rssi_handler)
+            except BleakError:
+                log.info("Live RSSI characteristic is unavailable for %s (%s)", name, address)
 
             # Offline-buffering (older firmwares won't expose these): subscribe to the replay
             # channel, then push our clock so the satellite can timestamp/flush its backlog.
