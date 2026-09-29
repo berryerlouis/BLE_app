@@ -390,10 +390,11 @@ class DeviceManager:
             except (asyncio.TimeoutError, BleakError):
                 log.info("Standard battery characteristic is unavailable for %s (%s)", name, address)
 
-            try:
-                await self._start_notify(client, self._cfg["rssi_char_uuid"], rssi_handler)
-            except (asyncio.TimeoutError, BleakError):
-                log.info("Live RSSI characteristic is unavailable for %s (%s)", name, address)
+            if self._cfg.get("rssi_enabled", False):
+                try:
+                    await self._start_notify(client, self._cfg["rssi_char_uuid"], rssi_handler)
+                except (asyncio.TimeoutError, BleakError):
+                    log.info("Live RSSI characteristic is unavailable for %s (%s)", name, address)
 
             # Offline-buffering (older firmwares won't expose these): subscribe to the replay
             # channel, then push our clock so the satellite can timestamp/flush its backlog.
