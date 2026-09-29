@@ -10,8 +10,9 @@ from math import isfinite
 # connection RSSI as an int16 and ARM aligns the record to 32 bytes.
 _IMU_LEGACY_STRUCT = struct.Struct("<7f")
 _IMU_STRUCT = struct.Struct("<7fh2x")
-# Matches: struct { float voltage; uint8_t percentage; uint32_t charging; }, padded to 12 bytes by default ARM alignment.
-# Legacy firmware sends 5-byte packed or 8-byte padded values and does not report charging.
+# Matches: struct { float voltage; uint8_t percentage; uint32_t powerFlags; }, padded to 12 bytes by default ARM alignment.
+# powerFlags bit 0 reports USB power and bit 1 reports a battery detected on VBAT.
+# Legacy firmware sends 5-byte packed or 8-byte padded values and does not report either state.
 _BATTERY_STRUCT = struct.Struct("<fB3xI")
 _BATTERY_LEGACY_STRUCT = struct.Struct("<fB3x")
 _BATTERY_COMPACT_STRUCT = struct.Struct("<fB")
@@ -56,6 +57,7 @@ class BatteryData:
     voltage: float
     percentage: int
     charging: bool
+    battery_present: bool | None
     raw_len: int
     raw_hex: str
 
@@ -64,11 +66,15 @@ class BatteryData:
         if len(data) == _BATTERY_COMPACT_STRUCT.size:
             voltage, percentage = _BATTERY_COMPACT_STRUCT.unpack(data)
             charging = False
+            battery_present = None
         elif len(data) == _BATTERY_LEGACY_STRUCT.size:
             voltage, percentage = _BATTERY_LEGACY_STRUCT.unpack(data)
             charging = False
+            battery_present = None
         else:
-            voltage, percentage, charging = _BATTERY_STRUCT.unpack(data)
+            voltage, percentage, power_flags = _BATTERY_STRUCT.unpack(data)
+            charging = bool(power_flags & 1)
+            battery_present = bool(power_flags & 2)
 
         if not isfinite(voltage) or voltage < 0 or voltage > _MAX_SINGLE_CELL_VOLTAGE:
             voltage = 0.0
@@ -81,7 +87,8 @@ class BatteryData:
         return cls(
             voltage=voltage,
             percentage=percentage,
-            charging=bool(charging),
+            charging=charging,
+            battery_present=battery_present,
             raw_len=len(data),
             raw_hex=data.hex(),
         )
@@ -93,6 +100,7 @@ class BatteryData:
             "voltage": self.voltage,
             "percentage": self.percentage,
             "charging": self.charging,
+            "battery_present": self.battery_present,
             "raw_len": self.raw_len,
             "raw_hex": self.raw_hex,
         }
@@ -145,19 +153,23 @@ class BatteryHistorySample:
     voltage: float
     percentage: int
     charging: bool
+    battery_present: bool | None
 
     @classmethod
     def from_bytes(cls, data: bytes) -> "BatteryHistorySample":
         if len(data) == _BATTERY_HISTORY_LEGACY_STRUCT.size:
             epoch_ms, voltage, percentage = _BATTERY_HISTORY_LEGACY_STRUCT.unpack(data)
             charging = False
+            battery_present = None
         else:
-            epoch_ms, voltage, percentage, charging = _BATTERY_HISTORY_STRUCT.unpack(data)
+            epoch_ms, voltage, percentage, power_flags = _BATTERY_HISTORY_STRUCT.unpack(data)
+            charging = bool(power_flags & 1)
+            battery_present = bool(power_flags & 2)
         if not isfinite(voltage) or voltage < 0 or voltage > _MAX_SINGLE_CELL_VOLTAGE:
             voltage = 0.0
             percentage = 0
         percentage = max(0, min(100, int(percentage)))
-        return cls(epoch_ms, voltage, percentage, bool(charging))
+        return cls(epoch_ms, voltage, percentage, charging, battery_present)
 
     def to_dict(self) -> dict:
         return {
@@ -167,6 +179,7 @@ class BatteryHistorySample:
             "voltage": self.voltage,
             "percentage": self.percentage,
             "charging": self.charging,
+            "battery_present": self.battery_present,
         }
 
 
