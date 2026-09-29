@@ -101,7 +101,7 @@ Le script installe :
 - paquets système (`bluez`, `network-manager`, `python3-venv`)
 - un environnement virtuel Python et les dépendances de [requirements.txt](requirements.txt)
 - un point d’accès Wi‑Fi via [scripts/setup_ap.sh](scripts/setup_ap.sh)
-- le service systemd [scripts/ble-central.service](scripts/ble-central.service)
+- le service systemd [scripts/ble-central.service](scripts/ble-central.service), qui débloque et active tous les contrôleurs Bluetooth détectés avant de lancer la centrale
 
 Vérifier l’état ensuite :
 
@@ -117,6 +117,8 @@ Le fichier [config.yaml](config.yaml) contient les paramètres applicatifs, nota
 - `ble.adapter`: contrôleur Bluetooth utilisé sur Raspberry Pi. Configurez `hci1` pour
   privilégier l'adaptateur USB plutôt que le module interne (`hci0`). Vérifiez les noms avec
   `bluetoothctl list` puis redémarrez le service.
+- Les adaptateurs USB nouvellement ajoutés sont automatiquement débloqués et activés à chaque
+  mise à jour exécutée avec `sudo ./scripts/update.sh`, puis avant chaque démarrage du service.
 - `ble.adapters`: liste optionnelle des contrôleurs BLE (`hci1`, `hci2`, ...). La centrale crée
   un scanner et un pool de connexions par adaptateur, puis attribue durablement chaque satellite à
   une seule radio. Pour 30 satellites, configurez au moins trois adaptateurs USB et répartissez-les
