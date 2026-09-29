@@ -33,7 +33,7 @@ export class ChartManager {
     this.rafId = requestAnimationFrame(renderLoop);
   }
 
-  createChart(ctx, datasetsConfig, yAxisLabel = '') {
+  createChart(ctx, datasetsConfig, yAxisLabel = '', secondaryYAxisLabel = '') {
     return new Chart(ctx, {
       type: 'line',
       data: {
@@ -50,6 +50,7 @@ export class ChartManager {
           pointHoverRadius: 4,
           tension: 0.1,
           spanGaps: true,
+          yAxisID: cfg.yAxisID || 'y',
         })),
       },
       options: {
@@ -81,6 +82,18 @@ export class ChartManager {
             },
             grid: { color: 'rgba(255, 255, 255, 0.06)' },
           },
+          ...(secondaryYAxisLabel ? {
+            yRotation: {
+              display: true,
+              position: 'right',
+              title: { display: true, text: secondaryYAxisLabel, color: CONFIG.COLORS.textMuted },
+              ticks: {
+                color: CONFIG.COLORS.textMuted,
+                font: { family: '-apple-system, system-ui, sans-serif', size: 11 },
+              },
+              grid: { drawOnChartArea: false },
+            },
+          } : {}),
         },
         plugins: {
           legend: {
@@ -136,6 +149,8 @@ export class ChartManager {
       { label: 'aY', color: CONFIG.COLORS.chartAy, hidden: true, borderWidth: 1.5 },
       { label: 'aZ', color: CONFIG.COLORS.chartAz, hidden: true, borderWidth: 1.5 },
       { label: 'Seuil commotion', color: CONFIG.COLORS.chartThreshold, borderWidth: 1.8, borderDash: [6, 4] },
+      { label: '|ω|', color: '#f59e0b', borderWidth: 2.2, yAxisID: 'yRotation' },
+      { label: 'Seuil rotation', color: '#f59e0b', borderWidth: 1.8, borderDash: [6, 4], yAxisID: 'yRotation' },
     ];
 
     const gyroDatasets = [
@@ -151,7 +166,7 @@ export class ChartManager {
     ];
 
     this.charts = {
-      accel: this.createChart(accelCanvas, accelDatasets, 'Pic accélération (g)'),
+      accel: this.createChart(accelCanvas, accelDatasets, 'Pic accélération (g)', 'Vitesse angulaire (°/s)'),
       gyro: this.createChart(gyroCanvas, gyroDatasets, 'Vitesse angulaire (dps)'),
       temp: this.createChart(tempCanvas, tempDatasets, 'Température (°C)'),
     };
@@ -175,7 +190,7 @@ export class ChartManager {
     this.onUserNavigatedCallback?.(false);
 
     const labels = [];
-    const accelData = { mag: [], ax: [], ay: [], az: [], threshold: [] };
+    const accelData = { mag: [], ax: [], ay: [], az: [], threshold: [], rotation: [], rotationThreshold: [] };
     const gyroData = { mag: [], gx: [], gy: [], gz: [], threshold: [] };
     const tempData = [];
 
@@ -205,6 +220,8 @@ export class ChartManager {
       accelData.ay.push(msg.aY);
       accelData.az.push(msg.aZ);
       accelData.threshold.push(threshold);
+      accelData.rotation.push(calcGyroMagnitude(msg.gX, msg.gY, msg.gZ));
+      accelData.rotationThreshold.push(rotationThreshold);
 
       gyroData.gx.push(msg.gX);
       gyroData.gy.push(msg.gY);
@@ -223,6 +240,8 @@ export class ChartManager {
     cAccel.data.datasets[2].data = accelData.ay;
     cAccel.data.datasets[3].data = accelData.az;
     cAccel.data.datasets[4].data = accelData.threshold;
+    cAccel.data.datasets[5].data = accelData.rotation;
+    cAccel.data.datasets[6].data = accelData.rotationThreshold;
 
     // Populate Gyro Chart
     const cGyro = this.charts.gyro;
@@ -300,8 +319,9 @@ export class ChartManager {
     const threshold = currentThreshold ?? CONFIG.DEFAULT_IMPACT_THRESHOLD;
     const rotationThreshold = currentRotationThreshold ?? CONFIG.DEFAULT_ROTATION_THRESHOLD;
 
-    this.pushPoint(this.charts.accel, t, [mag, msg.aX, msg.aY, msg.aZ, threshold]);
-    this.pushPoint(this.charts.gyro, t, [calcGyroMagnitude(msg.gX, msg.gY, msg.gZ), msg.gX, msg.gY, msg.gZ, rotationThreshold]);
+    const rotation = calcGyroMagnitude(msg.gX, msg.gY, msg.gZ);
+    this.pushPoint(this.charts.accel, t, [mag, msg.aX, msg.aY, msg.aZ, threshold, rotation, rotationThreshold]);
+    this.pushPoint(this.charts.gyro, t, [rotation, msg.gX, msg.gY, msg.gZ, rotationThreshold]);
     this.pushPoint(this.charts.temp, t, [msg.temp]);
 
     this.dirty = true;
@@ -326,11 +346,17 @@ export class ChartManager {
   }
 
   updateRotationThreshold(threshold) {
-    if (!this.charts?.gyro) return;
-    const thresholdDataset = this.charts.gyro.data.datasets[4];
-    if (thresholdDataset) {
-      thresholdDataset.data = thresholdDataset.data.map(() => threshold);
-      this.charts.gyro.update('none');
+    if (!this.charts) return;
+    const chartsWithRotationThreshold = [
+      [this.charts.accel, 6],
+      [this.charts.gyro, 4],
+    ];
+    for (const [chart, datasetIndex] of chartsWithRotationThreshold) {
+      const thresholdDataset = chart?.data.datasets[datasetIndex];
+      if (thresholdDataset) {
+        thresholdDataset.data = thresholdDataset.data.map(() => threshold);
+        chart.update('none');
+      }
     }
   }
 
