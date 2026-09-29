@@ -3,12 +3,12 @@
  */
 import { CONFIG } from './config.js?v=20260929-mobile-chart';
 import { api } from './api.js';
-import { state } from './state.js?v=20260926';
-import { wsClient } from './websocket.js?v=20260926';
+import { state } from './state.js?v=20260929-mobile-status';
+import { wsClient } from './websocket.js?v=20260929-mobile-status';
 import { ChartManager } from './charts.js?v=20260929-mobile-chart';
-import { ModalView } from './views/modalView.js?v=20260926';
-import { DashboardView } from './views/dashboardView.js?v=20260926';
-import { PlayerView } from './views/playerView.js?v=20260929-mobile-chart';
+import { ModalView } from './views/modalView.js?v=20260929-mobile-status';
+import { DashboardView } from './views/dashboardView.js?v=20260929-mobile-status';
+import { PlayerView } from './views/playerView.js?v=20260929-mobile-status';
 import { progressBar, sessionLoader } from './utils.js';
 
 class App {

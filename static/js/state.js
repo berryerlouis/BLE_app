@@ -190,6 +190,15 @@ class StateStore {
       last_update: isHistorical ? existing.last_update : msg.timestamp ?? Date.now() / 1000,
     };
 
+    // A GATT notification can reach a browser that loaded after the original
+    // connection-status event. Treat it as proof that the satellite is live.
+    if (['imu', 'battery', 'sync_status', 'firmware_version'].includes(msg.type)) {
+      updated.connected = true;
+      if (['advertising', 'connecting', 'disconnected'].includes(updated.state)) {
+        updated.state = 'subscribed';
+      }
+    }
+
     if (msg.type === 'status') {
       updated.connected = msg.connected;
       updated.state = msg.state || (msg.connected ? 'connected' : 'disconnected');

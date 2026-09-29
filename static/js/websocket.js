@@ -2,7 +2,7 @@
  * WebSocket Live Data Client
  */
 import { CONFIG } from './config.js';
-import { state } from './state.js?v=20260926';
+import { state } from './state.js?v=20260929-mobile-status';
 
 class WebSocketClient {
   constructor() {

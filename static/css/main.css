@@ -1999,6 +1999,50 @@ html, body {
     border-bottom: 1px solid var(--border-subtle);
   }
 
+  #devices-table td.col-player .player-cell-content {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  #devices-table td.col-player .player-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: var(--radius-md);
+  }
+
+  #devices-table td.col-player .player-meta {
+    min-width: 0;
+    flex: 1;
+    gap: 4px;
+    padding-top: 1px;
+  }
+
+  #devices-table td.col-player .player-name-row {
+    min-width: 0;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  #devices-table td.col-player .player-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #devices-table td.col-player .edit-player-btn { flex-shrink: 0; }
+
+  #devices-table td.col-player .player-mac {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 3px 6px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+  }
+
   #devices-table td.col-actions .btn {
     width: 100%;
     justify-content: center;
