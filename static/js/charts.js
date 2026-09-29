@@ -2,7 +2,7 @@
  * Chart.js Integration & Visualizations
  * High-performance RAF rendering & Full Session Zoom/Pan
  */
-import { CONFIG } from './config.js?v=20260929-mobile-chart';
+import { CONFIG } from './config.js?v=20260929-graph-history';
 import { calcAccelMagnitude } from './utils.js';
 
 export class ChartManager {
@@ -251,8 +251,11 @@ export class ChartManager {
       delete x.max;
       return;
     }
-    x.min = labels[labels.length - visiblePoints];
-    x.max = labels[labels.length - 1];
+    // Timestamps repeat for several IMU packets within the same second. Category
+    // scale bounds must use their indices, otherwise Chart.js can resolve a label
+    // to an earlier duplicate and leave the live view stuck in the past.
+    x.min = labels.length - visiblePoints;
+    x.max = labels.length - 1;
   }
 
   pushPoint(chart, timeLabel, values) {
@@ -329,6 +332,7 @@ export class ChartManager {
   followLive() {
     if (!this.charts) return;
     this.userNavigated = false;
+    this.isSessionMode = false;
     for (const chart of Object.values(this.charts)) {
       if (chart.resetZoom) chart.resetZoom();
       this.applyLiveWindow(chart);

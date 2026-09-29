@@ -1,7 +1,7 @@
 /**
  * Player Detail View (Second Page)
  */
-import { api } from '../api.js';
+import { api } from '../api.js?v=20260929-graph-history';
 import { state } from '../state.js?v=20260929-mobile-status';
 import {
   fmt,
@@ -106,12 +106,7 @@ export class PlayerView {
       }
     });
 
-    this.showAllBtn?.addEventListener('click', () => {
-      this.chartManager.showEntireSession();
-      if (!state.isViewingHistorical()) {
-        this.followLiveBtn?.classList.remove('hidden');
-      }
-    });
+    this.showAllBtn?.addEventListener('click', () => this.showEntireSession());
 
     this.followLiveBtn?.addEventListener('click', () => {
       this.chartManager.followLive();
@@ -156,6 +151,31 @@ export class PlayerView {
       }
     } finally {
       this.impactResetBtn.disabled = false;
+    }
+  }
+
+  async showEntireSession() {
+    const deviceId = state.currentDeviceId;
+    const sessionId = state.selectedSessionId;
+
+    // The live chart intentionally keeps a bounded rolling window. Load the
+    // persisted match log before showing everything so earlier points remain available.
+    if (deviceId && sessionId !== null) {
+      try {
+        const history = await api.fetchDeviceLog(deviceId, sessionId);
+        if (deviceId !== state.currentDeviceId || sessionId !== state.selectedSessionId) return;
+        state.currentDeviceLog = Array.isArray(history)
+          ? history.sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0))
+          : [];
+        this.rebuildAll();
+      } catch (err) {
+        console.error('Failed to reload the complete match log:', err);
+      }
+    }
+
+    this.chartManager.showEntireSession();
+    if (!state.isViewingHistorical()) {
+      this.followLiveBtn?.classList.remove('hidden');
     }
   }
 

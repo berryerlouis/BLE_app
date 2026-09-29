@@ -13,7 +13,7 @@ export const api = {
     const url = sessionId
       ? `/api/sessions/${encodeURIComponent(sessionId)}/devices/${encodeURIComponent(deviceId)}/log`
       : `/api/devices/${encodeURIComponent(deviceId)}/log`;
-    const res = await fetch(url);
+    const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error(`Erreur récupération journal (${res.status})`);
     return await res.json();
   },
