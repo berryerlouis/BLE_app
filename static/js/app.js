@@ -135,6 +135,10 @@ class App {
       }
     } else if (event === 'firmware_flash') {
       this.modalView.handleFirmwareProgress(payload);
+    } else if (event === 'device_sync_completed') {
+      if (state.currentDeviceId === payload.deviceId && !state.isViewingHistorical()) {
+        this.playerView.rebuildAll();
+      }
     } else if (event === 'device_updated') {
       if (!state.currentDeviceId) {
         this.queueDashboardUpdate(payload.deviceId, payload.device);

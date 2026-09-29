@@ -182,6 +182,7 @@ class StateStore {
     };
 
     const isHistorical = Boolean(msg.historical);
+    let syncCompleted = false;
 
     const updated = {
       ...existing,
@@ -229,7 +230,8 @@ class StateStore {
       updated.impact_alert = false;
       updated.impact_value = undefined;
     } else if (msg.type === 'sync_status') {
-      updated.state = msg.backfilling ? 'backfilling' : existing.state === 'backfilling' ? 'subscribed' : existing.state;
+      syncCompleted = existing.state === 'backfilling' && !msg.backfilling;
+      updated.state = msg.backfilling ? 'backfilling' : syncCompleted ? 'subscribed' : existing.state;
       updated.pending_samples = (msg.pending_imu || 0) + (msg.pending_battery || 0);
     } else if (msg.type === 'firmware_version') {
       updated.firmware_version = msg.version;
@@ -240,6 +242,10 @@ class StateStore {
 
     this.devices.set(id, updated);
     this.notify('device_updated', { deviceId: id, device: updated, message: msg });
+
+    if (syncCompleted) {
+      this.notify('device_sync_completed', { deviceId: id, device: updated });
+    }
 
     // If currently viewing this device in LIVE mode, update log
     if (this.currentDeviceId === id && !this.isViewingHistorical()) {
