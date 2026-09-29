@@ -33,7 +33,7 @@ export class ChartManager {
     this.rafId = requestAnimationFrame(renderLoop);
   }
 
-  createChart(ctx, datasetsConfig, yAxisLabel = '', secondaryYAxisLabel = '') {
+  createChart(ctx, datasetsConfig, yAxisLabel = '', secondaryYAxisLabel = '', yAxisOptions = {}) {
     return new Chart(ctx, {
       type: 'line',
       data: {
@@ -75,6 +75,7 @@ export class ChartManager {
           },
           y: {
             display: true,
+            ...yAxisOptions,
             title: yAxisLabel ? { display: true, text: yAxisLabel, color: CONFIG.COLORS.textMuted } : { display: false },
             ticks: {
               color: CONFIG.COLORS.textMuted,
@@ -86,6 +87,8 @@ export class ChartManager {
             yRotation: {
               display: true,
               position: 'right',
+              min: 0,
+              suggestedMax: 1000,
               title: { display: true, text: secondaryYAxisLabel, color: CONFIG.COLORS.textMuted },
               ticks: {
                 color: CONFIG.COLORS.textMuted,
@@ -166,8 +169,8 @@ export class ChartManager {
     ];
 
     this.charts = {
-      accel: this.createChart(accelCanvas, accelDatasets, 'Pic accélération (g)', 'Vitesse angulaire (°/s)'),
-      gyro: this.createChart(gyroCanvas, gyroDatasets, 'Vitesse angulaire (dps)'),
+      accel: this.createChart(accelCanvas, accelDatasets, 'Pic accélération (g)', 'Vitesse angulaire (°/s)', { min: 0, suggestedMax: 15 }),
+      gyro: this.createChart(gyroCanvas, gyroDatasets, 'Vitesse angulaire (dps)', '', { min: 0, suggestedMax: 1000 }),
       temp: this.createChart(tempCanvas, tempDatasets, 'Température (°C)'),
     };
 
