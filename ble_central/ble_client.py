@@ -228,8 +228,18 @@ class DeviceManager:
     async def _sync_time(self, client: BleakClient, address: str, name: str) -> None:
         """Push our clock to the satellite so it can timestamp/replay its offline buffer."""
         epoch_ms = int(time.time() * 1000)
-        await client.write_gatt_char(self._cfg["time_sync_char_uuid"], struct.pack("<Q", epoch_ms), response=True)
+        await asyncio.wait_for(
+            client.write_gatt_char(self._cfg["time_sync_char_uuid"], struct.pack("<Q", epoch_ms), response=True),
+            timeout=self._cfg.get("gatt_setup_timeout_s", 3),
+        )
         log.debug("Synced clock with %s (%s): epoch_ms=%d", name, address, epoch_ms)
+
+    async def _start_notify(self, client: BleakClient, char_uuid: str, handler) -> None:
+        """Start a notification subscription without allowing a stalled GATT request to block reconnection."""
+        await asyncio.wait_for(
+            client.start_notify(char_uuid, handler),
+            timeout=self._cfg.get("gatt_setup_timeout_s", 3),
+        )
 
     async def _read_firmware_version(self, client: BleakClient, address: str, name: str) -> None:
         """Reads the satellite's firmware version once per connection (Device Information Service),
@@ -373,26 +383,26 @@ class DeviceManager:
                     }
                 )
 
-            await client.start_notify(self._cfg["imu_data_char_uuid"], imu_handler)
-            await client.start_notify(self._cfg["battery_data_char_uuid"], battery_handler)
+            await self._start_notify(client, self._cfg["imu_data_char_uuid"], imu_handler)
+            await self._start_notify(client, self._cfg["battery_data_char_uuid"], battery_handler)
             try:
-                await client.start_notify(self._cfg["battery_level_char_uuid"], battery_level_handler)
-            except BleakError:
+                await self._start_notify(client, self._cfg["battery_level_char_uuid"], battery_level_handler)
+            except (asyncio.TimeoutError, BleakError):
                 log.info("Standard battery characteristic is unavailable for %s (%s)", name, address)
 
             try:
-                await client.start_notify(self._cfg["rssi_char_uuid"], rssi_handler)
-            except BleakError:
+                await self._start_notify(client, self._cfg["rssi_char_uuid"], rssi_handler)
+            except (asyncio.TimeoutError, BleakError):
                 log.info("Live RSSI characteristic is unavailable for %s (%s)", name, address)
 
             # Offline-buffering (older firmwares won't expose these): subscribe to the replay
             # channel, then push our clock so the satellite can timestamp/flush its backlog.
             try:
-                await client.start_notify(self._cfg["imu_history_char_uuid"], imu_history_handler)
-                await client.start_notify(self._cfg["battery_history_char_uuid"], battery_history_handler)
-                await client.start_notify(self._cfg["sync_status_char_uuid"], sync_status_handler)
+                await self._start_notify(client, self._cfg["imu_history_char_uuid"], imu_history_handler)
+                await self._start_notify(client, self._cfg["battery_history_char_uuid"], battery_history_handler)
+                await self._start_notify(client, self._cfg["sync_status_char_uuid"], sync_status_handler)
                 await self._sync_time(client, address, name)
-            except BleakError as exc:
+            except (asyncio.TimeoutError, BleakError) as exc:
                 log.info("Offline-buffering is unavailable for %s (%s): %s", name, address, exc)
 
             await self._read_firmware_version(client, address, name)
