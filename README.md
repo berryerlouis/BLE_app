@@ -119,6 +119,8 @@ Le fichier [config.yaml](config.yaml) contient les paramètres applicatifs, nota
   `bluetoothctl list` puis redémarrez le service.
 - `ble.device_name`: nom des capteurs BLE attendus (`IMU Satellite`)
 - `ble.*_char_uuid`: UUIDs des services et caractéristiques du firmware
+- `ble.firmware_version_refresh_s`: intervalle de relecture de la version des satellites connectés,
+  utile pour actualiser le dashboard après un flash USB
 - `ble.connect_timeout_s`: durée maximale d'une tentative de connexion GATT avant une nouvelle tentative
 - `ble.winrt_use_cached_services`: réutilise sous Windows le cache GATT pour accélérer les connexions; passez-le à `false` après une modification des services du firmware
 - `web.host` / `web.port`: adresse d’écoute et port du serveur web

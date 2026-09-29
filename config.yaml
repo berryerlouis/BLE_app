@@ -28,12 +28,14 @@ ble:
   # the dashboard can show the satellite's firmware version and flag when a newer one is available.
   device_info_service_uuid: "0000180a-0000-1000-8000-00805f9b34fb"
   firmware_version_char_uuid: "00002a26-0000-1000-8000-00805f9b34fb"
+  # Recheck the firmware revision on live connections so USB flashes refresh the dashboard.
+  firmware_version_refresh_s: 10
   scan_timeout_s: 10
   # Maximum duration of a GATT connection attempt before the session retries.
   connect_timeout_s: 10
   reconnect_delay_s: 1
-  # Windows: reuse the GATT cache for faster subsequent connections. Set false after a firmware GATT change.
-  winrt_use_cached_services: true
+  # Windows: always rediscover GATT services so firmware versions refresh after USB flashing.
+  winrt_use_cached_services: false
   # Max wait for a fresh advertisement before retrying a connection (BlueZ drops silent devices).
   rediscover_timeout_s: 10
   # How often to log what the adapter sees while no satellite is found.

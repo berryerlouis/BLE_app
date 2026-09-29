@@ -261,7 +261,7 @@ class DeviceManager:
         client_options = {}
         if sys.platform == "win32":
             client_options["winrt"] = {
-                "use_cached_services": self._cfg.get("winrt_use_cached_services", True),
+                "use_cached_services": self._cfg.get("winrt_use_cached_services", False),
             }
         client = BleakClient(device, **client_options)
         if sys.platform == "win32":
@@ -370,8 +370,13 @@ class DeviceManager:
 
             self._emit_status(address, name, "subscribed")
 
+            firmware_refresh_interval = self._cfg.get("firmware_version_refresh_s", 10)
+            next_firmware_refresh = time.monotonic() + firmware_refresh_interval
             while client.is_connected and not self._stop.is_set():
                 await asyncio.sleep(1)
+                if time.monotonic() >= next_firmware_refresh:
+                    await self._read_firmware_version(client, address, name)
+                    next_firmware_refresh = time.monotonic() + firmware_refresh_interval
         finally:
             if client.is_connected:
                 await client.disconnect()

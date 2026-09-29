@@ -4,7 +4,7 @@
 export const api = {
   async fetchDevices(sessionId = null) {
     const url = sessionId ? `/api/devices?session_id=${encodeURIComponent(sessionId)}` : '/api/devices';
-    const res = await fetch(url);
+    const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error(`Erreur récupération satellites (${res.status})`);
     return await res.json();
   },
