@@ -158,21 +158,27 @@ def _seeed_ports() -> set[str]:
     return {p.device for p in list_ports.comports() if p.vid == SEEED_XIAO_VID}
 
 
-def _wait_for_bootloader_port(known_ports: set[str], timeout_s: float) -> str:
+def _wait_for_bootloader_port(known_ports: set[str], original_port: str, timeout_s: float) -> str:
     """After the touch, the board reboots into the bootloader and re-enumerates over USB: wait
-    for a new Seeed XIAO port to show up (some OSes instead keep reusing the same device path).
+    for a new Seeed XIAO port to show up. Some OSes reuse `original_port`; track its temporary
+    disappearance so a batch never mistakes another board's already-prepared bootloader for it.
     """
     deadline = time.monotonic() + timeout_s
     last_seen: set[str] = set()
+    original_disappeared = False
     while time.monotonic() < deadline:
         current = _seeed_ports()
+        if original_port not in current:
+            original_disappeared = True
+        elif original_disappeared:
+            return original_port
         new_ports = current - known_ports
         if new_ports:
             return sorted(new_ports)[0]
         last_seen = current
         time.sleep(0.3)
-    if last_seen:
-        return sorted(last_seen)[0]
+    if original_port in last_seen:
+        return original_port
     raise FlashError("Le satellite n'est pas réapparu après le redémarrage en mode bootloader")
 
 
@@ -205,7 +211,7 @@ async def prepare_flash(port: str, progress_cb: ProgressCb) -> str:
 
     await progress_cb("waiting", "Attente de la réapparition du satellite...", 15)
     return await loop.run_in_executor(
-        None, _wait_for_bootloader_port, known_ports, PORT_REAPPEAR_TIMEOUT_S
+        None, _wait_for_bootloader_port, known_ports, port, PORT_REAPPEAR_TIMEOUT_S
     )
 
 
