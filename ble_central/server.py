@@ -714,6 +714,11 @@ def _update_state(app: web.Application, item: dict) -> list[dict]:
         # BLE lifecycle detail: advertising -> connecting -> connected -> subscribed (streaming),
         # falls back to "connected"/"disconnected" for satellites/clients that don't send it.
         summary["state"] = item.get("state") or ("connected" if item["connected"] else "disconnected")
+        if not item["connected"]:
+            summary["backfilling"] = False
+            summary["pending_samples"] = 0
+            summary["sync_total"] = 0
+            summary["sync_progress"] = 1.0
     elif msg_type == "imu":
         # Keep the "live now" reading untouched when replaying an old, buffered sample.
         if not is_historical:
