@@ -14,6 +14,7 @@ import asyncio
 import logging
 import re
 import shutil
+import sys
 import time
 from pathlib import Path
 from typing import Awaitable, Callable
@@ -176,6 +177,11 @@ def _wait_for_bootloader_port(known_ports: set[str], timeout_s: float) -> str:
 
 
 def _resolve_nrfutil_cmd() -> list[str] | None:
+    scripts_dir = Path(sys.executable).parent
+    for name in ("adafruit-nrfutil", "adafruit-nrfutil.exe"):
+        executable = scripts_dir / name
+        if executable.is_file():
+            return [str(executable)]
     exe = shutil.which("adafruit-nrfutil")
     return [exe] if exe else None
 
