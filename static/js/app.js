@@ -23,7 +23,8 @@ class App {
       (deviceId) => this.modalView.showLabelModal(deviceId, 'edit'),
       () => this.modalView.showSessionModal(),
       () => this.modalView.showEndSessionModal(),
-      (sessionId) => this.switchSession(sessionId)
+      (sessionId) => this.switchSession(sessionId),
+      (version) => this.modalView.showFirmwareModal(version)
     );
 
     this.playerView = new PlayerView(
@@ -101,6 +102,8 @@ class App {
       if (!state.currentDeviceId) {
         this.dashboardView.render();
       }
+    } else if (event === 'firmware_flash') {
+      this.modalView.handleFirmwareProgress(payload);
     } else if (event === 'device_updated') {
       if (!state.currentDeviceId) {
         this.queueDashboardUpdate(payload.deviceId, payload.device);

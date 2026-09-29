@@ -46,6 +46,23 @@ export class ModalView {
     this.endSessionError = document.getElementById('end-session-error');
     this.endSessionDurationInterval = null;
 
+    // Satellite Firmware (USB) Modal elements
+    this.firmwareBtn = document.getElementById('firmware-btn');
+    this.firmwareModal = document.getElementById('firmware-modal');
+    this.firmwareCloseBtn = document.getElementById('firmware-close-btn');
+    this.firmwareFlashBtn = document.getElementById('firmware-flash-btn');
+    this.firmwareUploadInput = document.getElementById('firmware-upload-input');
+    this.firmwareList = document.getElementById('firmware-list');
+    this.firmwareListEmpty = document.getElementById('firmware-list-empty');
+    this.firmwareRefreshPortsBtn = document.getElementById('firmware-refresh-ports-btn');
+    this.firmwarePortSelect = document.getElementById('firmware-port-select');
+    this.firmwareProgressContainer = document.getElementById('firmware-progress-container');
+    this.firmwareProgressBar = document.getElementById('firmware-progress-bar');
+    this.firmwareProgressText = document.getElementById('firmware-progress-text');
+    this.firmwareError = document.getElementById('firmware-error');
+    this.selectedFirmwareFilename = null;
+    this.isFlashing = false;
+
     this.labelQueue = [];
     this.labelSnoozedUntil = new Map();
     this.activeLabelDeviceId = null;
@@ -83,6 +100,13 @@ export class ModalView {
     });
 
     this.updateConfirmBtn?.addEventListener('click', () => this.handleApplyUpdate());
+
+    this.firmwareBtn?.addEventListener('click', () => this.showFirmwareModal());
+    this.firmwareCloseBtn?.addEventListener('click', () => this.hideFirmwareModal());
+    this.firmwareRefreshPortsBtn?.addEventListener('click', () => this.loadSerialPorts());
+    this.firmwareUploadInput?.addEventListener('change', () => this.handleUploadFirmware());
+    this.firmwareFlashBtn?.addEventListener('click', () => this.handleFlashFirmware());
+    this.firmwarePortSelect?.addEventListener('change', () => this.updateFlashButtonState());
   }
 
   needsLabel(device) {
@@ -328,5 +352,162 @@ export class ModalView {
   setUpdateProgress(percent, text) {
     if (this.updateProgressBar) this.updateProgressBar.style.width = `${percent}%`;
     if (this.updateProgressText && text) this.updateProgressText.textContent = text;
+  }
+
+  // --- Satellite Firmware Modal (USB flashing) ---
+
+  showFirmwareModal(preferredVersion = null) {
+    this.firmwareError?.classList.add('hidden');
+    this.firmwareProgressContainer?.classList.add('hidden');
+    this.firmwareModal?.classList.remove('hidden');
+    this.pendingPreferredFirmwareVersion = preferredVersion;
+    this.loadFirmwareList();
+    this.loadSerialPorts();
+  }
+
+  hideFirmwareModal() {
+    if (this.isFlashing) return; // don't let the user lose track of an in-progress flash
+    this.firmwareModal?.classList.add('hidden');
+  }
+
+  async loadFirmwareList() {
+    try {
+      const list = await api.fetchFirmwareList();
+      this.renderFirmwareList(list);
+    } catch (err) {
+      this.showFirmwareError(err.message);
+    }
+  }
+
+  renderFirmwareList(list) {
+    if (!this.firmwareList) return;
+    if (!list.length) {
+      this.selectedFirmwareFilename = null;
+      this.firmwareList.innerHTML = '<p class="text-muted" id="firmware-list-empty">Aucun firmware importé.</p>';
+      this.updateFlashButtonState();
+      return;
+    }
+    const preferred = list.find((f) => f.version === this.pendingPreferredFirmwareVersion);
+    if (preferred) {
+      this.selectedFirmwareFilename = preferred.filename;
+    } else if (!list.some((f) => f.filename === this.selectedFirmwareFilename)) {
+      const newest = [...list].sort((a, b) => (b.version || '').localeCompare(a.version || '', undefined, { numeric: true }))[0];
+      this.selectedFirmwareFilename = newest.filename;
+    }
+    this.pendingPreferredFirmwareVersion = null;
+    this.firmwareList.innerHTML = list.map((f) => {
+      const sizeKb = (f.size / 1024).toFixed(0);
+      const selected = f.filename === this.selectedFirmwareFilename;
+      return `
+        <div class="firmware-list-item ${selected ? 'selected' : ''}" data-filename="${f.filename}">
+          <span class="firmware-name">${f.filename}</span>
+          <span class="firmware-meta">${sizeKb} Ko</span>
+        </div>
+      `;
+    }).join('');
+    this.firmwareList.querySelectorAll('.firmware-list-item').forEach((el) => {
+      el.addEventListener('click', () => {
+        this.selectedFirmwareFilename = el.dataset.filename;
+        this.renderFirmwareList(list);
+      });
+    });
+    this.updateFlashButtonState();
+  }
+
+  async handleUploadFirmware() {
+    const file = this.firmwareUploadInput?.files?.[0];
+    if (!file) return;
+    this.firmwareError?.classList.add('hidden');
+    try {
+      const result = await api.uploadFirmware(file);
+      this.selectedFirmwareFilename = result.filename;
+      await this.loadFirmwareList();
+    } catch (err) {
+      this.showFirmwareError(err.message);
+    } finally {
+      this.firmwareUploadInput.value = '';
+    }
+  }
+
+  async loadSerialPorts() {
+    if (!this.firmwarePortSelect) return;
+    try {
+      const ports = await api.fetchSerialPorts();
+      const previousValue = this.firmwarePortSelect.value;
+      if (!ports.length) {
+        this.firmwarePortSelect.innerHTML = '<option value="">Aucun port détecté</option>';
+      } else {
+        this.firmwarePortSelect.innerHTML = ports.map((p) => {
+          const label = `${p.device}${p.likely_satellite ? ' — Satellite détecté' : ''}${p.description ? ` (${p.description})` : ''}`;
+          return `<option value="${p.device}">${label}</option>`;
+        }).join('');
+        const stillPresent = ports.some((p) => p.device === previousValue);
+        const preferred = stillPresent ? previousValue : (ports.find((p) => p.likely_satellite) || ports[0]).device;
+        this.firmwarePortSelect.value = preferred;
+      }
+    } catch (err) {
+      this.showFirmwareError(err.message);
+    }
+    this.updateFlashButtonState();
+  }
+
+  updateFlashButtonState() {
+    if (!this.firmwareFlashBtn) return;
+    const hasFirmware = Boolean(this.selectedFirmwareFilename);
+    const hasPort = Boolean(this.firmwarePortSelect?.value);
+    this.firmwareFlashBtn.disabled = this.isFlashing || !hasFirmware || !hasPort;
+  }
+
+  async handleFlashFirmware() {
+    const port = this.firmwarePortSelect?.value;
+    const filename = this.selectedFirmwareFilename;
+    if (!port || !filename) return;
+
+    this.firmwareError?.classList.add('hidden');
+    this.isFlashing = true;
+    this.updateFlashButtonState();
+    this.firmwareCloseBtn?.setAttribute('disabled', 'true');
+    this.firmwareProgressContainer?.classList.remove('hidden');
+    this.setFirmwareProgress(0, 'Démarrage...');
+
+    try {
+      await api.flashFirmware(port, filename);
+    } catch (err) {
+      this.isFlashing = false;
+      this.firmwareCloseBtn?.removeAttribute('disabled');
+      this.updateFlashButtonState();
+      this.showFirmwareError(err.message);
+    }
+  }
+
+  /** Called by the app for every 'firmware_flash' WebSocket progress message. */
+  handleFirmwareProgress(msg) {
+    if (msg.stage === 'error') {
+      this.isFlashing = false;
+      this.firmwareCloseBtn?.removeAttribute('disabled');
+      this.updateFlashButtonState();
+      this.showFirmwareError(msg.message);
+      return;
+    }
+
+    this.setFirmwareProgress(msg.percent ?? 0, msg.message);
+
+    if (msg.stage === 'done') {
+      this.isFlashing = false;
+      this.firmwareCloseBtn?.removeAttribute('disabled');
+      this.updateFlashButtonState();
+    }
+  }
+
+  setFirmwareProgress(percent, text) {
+    if (this.firmwareProgressBar) this.firmwareProgressBar.style.width = `${percent}%`;
+    if (this.firmwareProgressText && text) this.firmwareProgressText.textContent = text;
+  }
+
+  showFirmwareError(msg) {
+    if (this.firmwareError) {
+      this.firmwareError.textContent = msg;
+      this.firmwareError.classList.remove('hidden');
+    }
   }
 }

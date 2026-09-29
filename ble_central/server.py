@@ -15,7 +15,7 @@ from pathlib import Path
 
 from aiohttp import WSMsgType, web
 
-from . import update
+from . import firmware, update
 from .db import Database, DEFAULT_DB_PATH, DEFAULT_IMPACT_THRESHOLD
 
 log = logging.getLogger("web_server")
@@ -42,6 +42,8 @@ def create_app(
     app["logs"] = {}  # device_id -> deque of raw messages for active session
     app["active_session"] = None
     app["db"] = Database(db_path)
+    app["firmware_lock"] = asyncio.Lock()
+    firmware.ensure_firmware_dir()
 
     app.router.add_get("/", index_handler)
     app.router.add_get("/ws", websocket_handler)
@@ -69,6 +71,13 @@ def create_app(
     app.router.add_get("/api/version", version_handler)
     app.router.add_get("/api/update/check", update_check_handler)
     app.router.add_post("/api/update/apply", update_apply_handler)
+
+    # Satellite firmware (USB flashing)
+    app.router.add_get("/api/firmware", list_firmware_handler)
+    app.router.add_post("/api/firmware/upload", upload_firmware_handler)
+    app.router.add_delete("/api/firmware/{filename}", delete_firmware_handler)
+    app.router.add_get("/api/firmware/ports", list_serial_ports_handler)
+    app.router.add_post("/api/firmware/flash", flash_firmware_handler)
 
     # Diagnostics: lets someone on-site export logs/db for offline analysis once the Pi
     # is deployed and no longer reachable over SSH.
@@ -139,6 +148,8 @@ async def _load_persisted_state(app: web.Application) -> None:
     for summary in devices.values():
         summary["connected"] = False
         summary["state"] = "disconnected"
+        # The firmware/ folder may have changed (git pull, manual copy) since the last run.
+        _refresh_firmware_status(summary)
     app["devices"] = devices
     app["logs"] = {}
     for device_id, entries in logs.items():
@@ -491,6 +502,88 @@ async def update_apply_handler(_request: web.Request) -> web.Response:
     return web.json_response(result)
 
 
+# =========================================================================
+# Satellite Firmware Handlers (USB flashing)
+# =========================================================================
+
+async def list_firmware_handler(_request: web.Request) -> web.Response:
+    return web.json_response(firmware.list_firmware())
+
+
+async def upload_firmware_handler(request: web.Request) -> web.Response:
+    reader = await request.multipart()
+    field = await reader.next()
+    if field is None or field.name != "file":
+        return web.json_response({"error": "Fichier manquant"}, status=400)
+
+    filename = field.filename or "firmware.zip"
+    data = await field.read(decode=False)
+    try:
+        saved_name = firmware.save_firmware(filename, data)
+    except firmware.FlashError as exc:
+        return web.json_response({"error": str(exc)}, status=400)
+    await _refresh_all_firmware_status(request.app)
+    return web.json_response({"filename": saved_name, "size": len(data)}, status=201)
+
+
+async def delete_firmware_handler(request: web.Request) -> web.Response:
+    filename = request.match_info["filename"]
+    if not firmware.delete_firmware(filename):
+        return web.json_response({"error": "Firmware introuvable"}, status=404)
+    await _refresh_all_firmware_status(request.app)
+    return web.json_response({"success": True})
+
+
+async def list_serial_ports_handler(_request: web.Request) -> web.Response:
+    return web.json_response(firmware.list_serial_ports())
+
+
+async def flash_firmware_handler(request: web.Request) -> web.Response:
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "Corps JSON invalide"}, status=400)
+
+    port = str(body.get("port", "")).strip()
+    filename = str(body.get("filename", "")).strip()
+    if not port or not filename:
+        return web.json_response({"error": "Port et fichier firmware requis"}, status=400)
+
+    zip_path = firmware.FIRMWARE_DIR / Path(filename).name
+    if not zip_path.is_file():
+        return web.json_response({"error": "Firmware introuvable"}, status=404)
+
+    if request.app["firmware_lock"].locked():
+        return web.json_response({"error": "Une mise à jour est déjà en cours"}, status=409)
+
+    app = request.app
+
+    async def progress_cb(stage: str, message: str, percent: int | None) -> None:
+        await _broadcast_message(app, {
+            "type": "firmware_flash",
+            "stage": stage,
+            "message": message,
+            "percent": percent,
+            "port": port,
+            "filename": filename,
+            "timestamp": time.time(),
+        })
+
+    async def run_flash() -> None:
+        async with app["firmware_lock"]:
+            try:
+                await firmware.flash_firmware(port, zip_path, progress_cb)
+            except firmware.FlashError as exc:
+                log.warning("Firmware flash failed: %s", exc)
+                await progress_cb("error", str(exc), None)
+            except Exception:
+                log.exception("Unexpected error flashing firmware")
+                await progress_cb("error", "Erreur inattendue pendant la mise à jour", None)
+
+    asyncio.create_task(run_flash())
+    return web.json_response({"started": True}, status=202)
+
+
 async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
     ws = web.WebSocketResponse(heartbeat=20)
     await ws.prepare(request)
@@ -519,7 +612,11 @@ def _update_state(app: web.Application, item: dict) -> dict | None:
     )
     if item.get("device_name"):
         summary["device_name"] = item["device_name"]
-    summary["last_update"] = item.get("timestamp")
+    is_historical = bool(item.get("historical"))
+    # Backfilled samples carry the timestamp of when they were recorded, not now:
+    # don't let them make an actively-connected device look stale (or vice versa).
+    if not is_historical:
+        summary["last_update"] = item.get("timestamp")
     summary.setdefault("impact_threshold", DEFAULT_IMPACT_THRESHOLD)
 
     # Attach current session_id to incoming item
@@ -535,7 +632,9 @@ def _update_state(app: web.Application, item: dict) -> dict | None:
         # falls back to "connected"/"disconnected" for satellites/clients that don't send it.
         summary["state"] = item.get("state") or ("connected" if item["connected"] else "disconnected")
     elif msg_type == "imu":
-        summary.update({k: item[k] for k in ("aX", "aY", "aZ", "gX", "gY", "gZ", "temp")})
+        # Keep the "live now" reading untouched when replaying an old, buffered sample.
+        if not is_historical:
+            summary.update({k: item[k] for k in ("aX", "aY", "aZ", "gX", "gY", "gZ", "temp")})
         magnitude = math.sqrt(item["aX"] ** 2 + item["aY"] ** 2 + item["aZ"] ** 2)
         if magnitude >= summary["impact_threshold"] and not summary.get("impact_alert"):
             summary["impact_alert"] = True
@@ -547,18 +646,58 @@ def _update_state(app: web.Application, item: dict) -> dict | None:
                 "impact_value": magnitude,
                 "impact_threshold": summary["impact_threshold"],
                 "timestamp": item.get("timestamp", time.time()),
+                "historical": is_historical,
             }
     elif msg_type == "battery":
-        summary["battery_voltage"] = item["voltage"]
-        summary["battery_percentage"] = item["percentage"]
+        if not is_historical:
+            if "voltage" in item:
+                summary["battery_voltage"] = item["voltage"]
+            if "percentage" in item:
+                summary["battery_percentage"] = item["percentage"]
     elif msg_type == "rssi":
         summary["rssi"] = item["rssi"]
+    elif msg_type == "sync_status":
+        # Progress of the satellite replaying data it buffered while disconnected.
+        summary["backfilling"] = item.get("backfilling", False)
+        summary["backfill_pending"] = item.get("pending_imu", 0) + item.get("pending_battery", 0)
+    elif msg_type == "firmware_version":
+        summary["firmware_version"] = item.get("version")
+        _refresh_firmware_status(summary)
 
     log_buffer = app["logs"].setdefault(device_id, deque(maxlen=MAX_LOG_ENTRIES_PER_DEVICE))
     log_buffer.append(item)
     if impact_event:
         log_buffer.append(impact_event)
     return impact_event
+
+
+def _refresh_firmware_status(summary: dict) -> None:
+    """Compares a device's last-reported firmware version against what's available in the
+    firmware/ folder, so the dashboard can flag when a newer USB-flashable build exists.
+    """
+    latest = firmware.latest_firmware()
+    latest_version = latest["version"] if latest else None
+    summary["latest_firmware_version"] = latest_version
+    summary["firmware_update_available"] = firmware.is_newer(summary.get("firmware_version"), latest_version)
+
+
+async def _refresh_all_firmware_status(app: web.Application) -> None:
+    """Re-evaluates firmware_update_available for every known device (e.g. after a new firmware
+    package is uploaded/deleted) and persists + broadcasts the change.
+    """
+    for device_id, summary in app["devices"].items():
+        _refresh_firmware_status(summary)
+        await app["db"].save_device(device_id, summary)
+        await _broadcast_message(
+            app,
+            {
+                "type": "firmware_status",
+                "device_id": device_id,
+                "latest_firmware_version": summary.get("latest_firmware_version"),
+                "firmware_update_available": summary.get("firmware_update_available", False),
+                "timestamp": time.time(),
+            },
+        )
 
 
 def _persist_state(app: web.Application, device_id: str, item: dict) -> None:

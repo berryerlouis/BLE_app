@@ -19,12 +19,13 @@ import {
 } from '../utils.js';
 
 export class DashboardView {
-  constructor(onOpenPlayer, onEditLabel, onNewSession, onEndSession, onSelectSession) {
+  constructor(onOpenPlayer, onEditLabel, onNewSession, onEndSession, onSelectSession, onFlashFirmware) {
     this.onOpenPlayer = onOpenPlayer;
     this.onEditLabel = onEditLabel;
     this.onNewSession = onNewSession;
     this.onEndSession = onEndSession;
     this.onSelectSession = onSelectSession;
+    this.onFlashFirmware = onFlashFirmware;
 
     this.container = document.getElementById('devices-view');
     this.tbody = document.getElementById('devices-tbody');
@@ -113,6 +114,14 @@ export class DashboardView {
         e.preventDefault();
         const deviceId = editBtn.dataset.deviceId;
         if (deviceId && this.onEditLabel) this.onEditLabel(deviceId);
+        return;
+      }
+
+      const flashBtn = e.target.closest('[data-action="flash-firmware"]');
+      if (flashBtn) {
+        e.stopPropagation();
+        e.preventDefault();
+        if (this.onFlashFirmware) this.onFlashFirmware(flashBtn.dataset.firmwareVersion);
         return;
       }
 
@@ -270,6 +279,27 @@ export class DashboardView {
     `;
   }
 
+  /** Small badge under the MAC address showing the satellite's reported firmware version,
+   * turned into a clickable "update available" pill when a newer USB-flashable build exists.
+   */
+  getFirmwareBadgeHtml(d) {
+    const hasVersion = Boolean(d.firmware_version);
+    const hasUpdate = hasVersion && Boolean(d.firmware_update_available);
+    const mac = escapeHtml(d.device_id || '');
+    const title = hasUpdate
+      ? `Mise à jour disponible : v${escapeHtml(d.latest_firmware_version)}`
+      : 'Version du firmware du satellite';
+    return `
+      <span class="firmware-version-badge ${hasUpdate ? 'update-available' : ''} ${hasVersion ? '' : 'hidden'}"
+            ${hasUpdate ? `data-action="flash-firmware" data-device-id="${mac}" data-firmware-version="${escapeHtml(d.latest_firmware_version || '')}"` : ''}
+            title="${title}">
+        <i data-lucide="${hasUpdate ? 'arrow-up-circle' : 'cpu'}"></i>
+        <span class="firmware-version-text">v${hasVersion ? escapeHtml(d.firmware_version) : '--'}</span>
+        ${hasUpdate ? `<span class="firmware-version-arrow">&rarr; v${escapeHtml(d.latest_firmware_version)}</span>` : ''}
+      </span>
+    `;
+  }
+
   createDeviceRowHtml(d) {
     const isConnected = Boolean(d.connected);
     const link = getDeviceLinkState(d);
@@ -314,6 +344,7 @@ export class DashboardView {
                 </button>
               </div>
               <span class="player-mac">${escapeHtml(mac)}</span>
+              ${this.getFirmwareBadgeHtml(d)}
             </div>
           </div>
         </td>
@@ -408,6 +439,16 @@ export class DashboardView {
     const nameEl = row.querySelector('.player-name');
     if (nameEl && nameEl.textContent !== displayName) {
       nameEl.textContent = displayName;
+    }
+
+    // Firmware version / update-available badge
+    const firmwareBadge = row.querySelector('.firmware-version-badge');
+    if (firmwareBadge) {
+      const newBadgeHtml = this.getFirmwareBadgeHtml(d).trim();
+      if (firmwareBadge.outerHTML !== newBadgeHtml) {
+        firmwareBadge.outerHTML = newBadgeHtml;
+        if (window.lucide) window.lucide.createIcons();
+      }
     }
 
     // G Magnitude & Pill (Mutate text nodes only, NEVER rebuild innerHTML during live streaming)

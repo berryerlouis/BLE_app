@@ -228,7 +228,11 @@ export class PlayerView {
       const history = await api.fetchDeviceLog(deviceId, currentSessionId);
       progressBar.set(70);
       sessionLoader.update(70, `${loadLabel} Construction des graphiques...`);
-      state.currentDeviceLog = Array.isArray(history) ? history : [];
+      // Stored in arrival order: a backfilled sample replayed after a reconnect can be
+      // interleaved with newer live samples, so re-sort chronologically before use.
+      const sorted = Array.isArray(history) ? history : [];
+      sorted.sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
+      state.currentDeviceLog = sorted;
       this.rebuildAll();
       progressBar.complete();
       sessionLoader.hide();
@@ -396,8 +400,10 @@ export class PlayerView {
 
     if (!state.realtimeEnabled) return;
 
-    // Stream to charts via high-performance RAF buffer
-    if (msg.type === 'imu') {
+    // Stream to charts via high-performance RAF buffer. Backfilled (historical) samples
+    // arrive out of chronological order relative to live points, so they're excluded here;
+    // they're still stored in the log/DB and show up when a full session is (re)loaded.
+    if (msg.type === 'imu' && !msg.historical) {
       const dev = state.getCurrentDevice();
       this.chartManager.feedImuData(msg, getDeviceThreshold(dev));
     } else if (msg.type === 'threshold') {

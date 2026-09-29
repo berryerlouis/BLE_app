@@ -115,6 +115,12 @@ class StateStore {
   }
 
   handleWebSocketMessage(msg) {
+    // Firmware USB flashing progress: no device_id, just forward to whoever's listening.
+    if (msg.type === 'firmware_flash') {
+      this.notify('firmware_flash', msg);
+      return;
+    }
+
     // Handle session lifecycle events
     if (msg.type === 'session_created') {
       this.activeSession = msg.session;
@@ -175,30 +181,37 @@ class StateStore {
       impact_threshold: CONFIG.DEFAULT_IMPACT_THRESHOLD,
     };
 
+    const isHistorical = Boolean(msg.historical);
+
     const updated = {
       ...existing,
       device_name: msg.device_name ?? existing.device_name,
-      last_update: msg.timestamp ?? Date.now() / 1000,
+      last_update: isHistorical ? existing.last_update : msg.timestamp ?? Date.now() / 1000,
     };
 
     if (msg.type === 'status') {
       updated.connected = msg.connected;
       updated.state = msg.state || (msg.connected ? 'connected' : 'disconnected');
     } else if (msg.type === 'imu') {
-      Object.assign(updated, {
-        aX: msg.aX,
-        aY: msg.aY,
-        aZ: msg.aZ,
-        gX: msg.gX,
-        gY: msg.gY,
-        gZ: msg.gZ,
-        temp: msg.temp,
-      });
+      // A replayed (backfilled) sample must not overwrite the current live reading.
+      if (!isHistorical) {
+        Object.assign(updated, {
+          aX: msg.aX,
+          aY: msg.aY,
+          aZ: msg.aZ,
+          gX: msg.gX,
+          gY: msg.gY,
+          gZ: msg.gZ,
+          temp: msg.temp,
+        });
+      }
       const mag = Math.sqrt(msg.aX ** 2 + msg.aY ** 2 + msg.aZ ** 2);
       this.updateMaxG(id, mag);
     } else if (msg.type === 'battery') {
-      updated.battery_voltage = msg.voltage;
-      updated.battery_percentage = msg.percentage;
+      if (!isHistorical) {
+        if (msg.voltage !== undefined) updated.battery_voltage = msg.voltage;
+        if (msg.percentage !== undefined) updated.battery_percentage = msg.percentage;
+      }
     } else if (msg.type === 'rssi') {
       updated.rssi = msg.rssi;
     } else if (msg.type === 'label') {
@@ -214,6 +227,14 @@ class StateStore {
     } else if (msg.type === 'impact_reset') {
       updated.impact_alert = false;
       updated.impact_value = undefined;
+    } else if (msg.type === 'sync_status') {
+      updated.state = msg.backfilling ? 'backfilling' : existing.state === 'backfilling' ? 'subscribed' : existing.state;
+      updated.pending_samples = (msg.pending_imu || 0) + (msg.pending_battery || 0);
+    } else if (msg.type === 'firmware_version') {
+      updated.firmware_version = msg.version;
+    } else if (msg.type === 'firmware_status') {
+      updated.latest_firmware_version = msg.latest_firmware_version;
+      updated.firmware_update_available = msg.firmware_update_available;
     }
 
     this.devices.set(id, updated);

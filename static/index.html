@@ -84,6 +84,10 @@
     </div>
 
     <div class="header-actions">
+      <button id="firmware-btn" class="btn btn-secondary btn-sm" type="button" title="Mettre à jour le firmware d'un satellite via USB">
+        <i data-lucide="cpu"></i>
+        <span>Firmware</span>
+      </button>
       <div class="server-status-pill">
         <span id="conn-dot" class="status-dot dot-offline"></span>
         <span id="conn-text">Serveur déconnecté</span>
@@ -551,6 +555,62 @@
       <div class="modal-footer">
         <button id="label-later-btn" class="btn btn-secondary" type="button">Plus tard</button>
         <button id="label-save-btn" class="btn btn-primary" type="button">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Satellite Firmware Update (USB) -->
+  <div id="firmware-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>Mise à jour firmware satellite (USB)</h2>
+      </div>
+      <div class="modal-body">
+        <p class="text-secondary mb-4" style="font-size: 0.9rem;">
+          Branchez le satellite en USB sur cette machine, choisissez le firmware (.zip) et le port, puis lancez le flashage.
+        </p>
+
+        <div class="firmware-section">
+          <div class="firmware-section-header">
+            <span class="text-muted">Firmwares disponibles</span>
+            <label class="btn btn-secondary btn-sm" for="firmware-upload-input">
+              <i data-lucide="upload"></i>
+              <span>Importer un .zip</span>
+            </label>
+            <input type="file" id="firmware-upload-input" accept=".zip" class="hidden" />
+          </div>
+          <div id="firmware-list" class="firmware-list">
+            <p class="text-muted" id="firmware-list-empty">Aucun firmware importé.</p>
+          </div>
+        </div>
+
+        <div class="firmware-section">
+          <div class="firmware-section-header">
+            <span class="text-muted">Port USB du satellite</span>
+            <button id="firmware-refresh-ports-btn" class="btn btn-secondary btn-sm" type="button" title="Rafraîchir la liste des ports">
+              <i data-lucide="refresh-cw"></i>
+            </button>
+          </div>
+          <select id="firmware-port-select" class="session-select" style="width:100%;">
+            <option value="">Aucun port détecté</option>
+          </select>
+        </div>
+
+        <div id="firmware-progress-container" class="update-progress-container hidden">
+          <div class="progress-bar-wrapper">
+            <div class="progress-bar" id="firmware-progress-bar"></div>
+          </div>
+          <p id="firmware-progress-text" class="progress-text">--</p>
+        </div>
+
+        <p id="firmware-error" class="error-banner hidden"></p>
+      </div>
+      <div class="modal-footer">
+        <button id="firmware-close-btn" class="btn btn-secondary" type="button">Fermer</button>
+        <button id="firmware-flash-btn" class="btn btn-primary" type="button">
+          <i data-lucide="zap"></i>
+          <span>Flasher</span>
+        </button>
       </div>
     </div>
   </div>

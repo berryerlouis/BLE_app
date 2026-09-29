@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import struct
 import sys
 import time
 
@@ -15,7 +16,7 @@ from bleak import BleakClient, BleakScanner
 from bleak.backends.device import BLEDevice
 from bleak.exc import BleakError
 
-from .models import BatteryData, ImuData
+from .models import BatteryData, BatteryHistorySample, ImuData, ImuHistorySample, SyncStatus
 
 log = logging.getLogger("ble_central")
 
@@ -224,6 +225,35 @@ class DeviceManager:
             }
         )
 
+    async def _sync_time(self, client: BleakClient, address: str, name: str) -> None:
+        """Push our clock to the satellite so it can timestamp/replay its offline buffer."""
+        epoch_ms = int(time.time() * 1000)
+        await client.write_gatt_char(self._cfg["time_sync_char_uuid"], struct.pack("<Q", epoch_ms), response=True)
+        log.debug("Synced clock with %s (%s): epoch_ms=%d", name, address, epoch_ms)
+
+    async def _read_firmware_version(self, client: BleakClient, address: str, name: str) -> None:
+        """Reads the satellite's firmware version once per connection (Device Information Service),
+        so the dashboard can show it and flag when a newer USB-flashable firmware is available.
+        Older firmwares without this service just keep working without a reported version.
+        """
+        try:
+            payload = await client.read_gatt_char(self._cfg["firmware_version_char_uuid"])
+            version = bytes(payload).decode("utf-8", errors="replace").strip()
+        except (BleakError, KeyError) as exc:
+            log.info("Firmware version characteristic unavailable for %s (%s): %s", name, address, exc)
+            return
+        if not version:
+            return
+        self._queue.put_nowait(
+            {
+                "type": "firmware_version",
+                "device_id": address,
+                "device_name": name,
+                "version": version,
+                "timestamp": time.time(),
+            }
+        )
+
     async def _connect_and_stream(self, device: BLEDevice, name: str) -> None:
         address = device.address
         log.info("Connecting to %s (%s)", name, address)
@@ -268,8 +298,76 @@ class DeviceManager:
                 item.update(device_id=address, device_name=name)
                 self._queue.put_nowait(item)
 
+            def battery_level_handler(_sender, data: bytearray) -> None:
+                payload = bytes(data)
+                if len(payload) != 1:
+                    log.warning("Invalid standard battery data from %s (%s): %d bytes", name, address, len(payload))
+                    return
+                self._queue.put_nowait(
+                    {
+                        "type": "battery",
+                        "timestamp": time.time(),
+                        "percentage": min(100, payload[0]),
+                        "device_id": address,
+                        "device_name": name,
+                    }
+                )
+
+            def imu_history_handler(_sender, data: bytearray) -> None:
+                try:
+                    item = ImuHistorySample.from_bytes(bytes(data)).to_dict()
+                except Exception as exc:
+                    log.warning("Invalid IMU history sample from %s (%s): %s", name, address, exc)
+                    return
+                item.update(device_id=address, device_name=name)
+                self._queue.put_nowait(item)
+
+            def battery_history_handler(_sender, data: bytearray) -> None:
+                try:
+                    item = BatteryHistorySample.from_bytes(bytes(data)).to_dict()
+                except Exception as exc:
+                    log.warning("Invalid battery history sample from %s (%s): %s", name, address, exc)
+                    return
+                item.update(device_id=address, device_name=name)
+                self._queue.put_nowait(item)
+
+            def sync_status_handler(_sender, data: bytearray) -> None:
+                try:
+                    status = SyncStatus.from_bytes(bytes(data))
+                except Exception as exc:
+                    log.warning("Invalid sync status from %s (%s): %s", name, address, exc)
+                    return
+                self._queue.put_nowait(
+                    {
+                        "type": "sync_status",
+                        "device_id": address,
+                        "device_name": name,
+                        "pending_imu": status.pending_imu,
+                        "pending_battery": status.pending_battery,
+                        "backfilling": status.backfilling,
+                        "timestamp": time.time(),
+                    }
+                )
+
             await client.start_notify(self._cfg["imu_data_char_uuid"], imu_handler)
             await client.start_notify(self._cfg["battery_data_char_uuid"], battery_handler)
+            try:
+                await client.start_notify(self._cfg["battery_level_char_uuid"], battery_level_handler)
+            except BleakError:
+                log.info("Standard battery characteristic is unavailable for %s (%s)", name, address)
+
+            # Offline-buffering (older firmwares won't expose these): subscribe to the replay
+            # channel, then push our clock so the satellite can timestamp/flush its backlog.
+            try:
+                await client.start_notify(self._cfg["imu_history_char_uuid"], imu_history_handler)
+                await client.start_notify(self._cfg["battery_history_char_uuid"], battery_history_handler)
+                await client.start_notify(self._cfg["sync_status_char_uuid"], sync_status_handler)
+                await self._sync_time(client, address, name)
+            except BleakError as exc:
+                log.info("Offline-buffering is unavailable for %s (%s): %s", name, address, exc)
+
+            await self._read_firmware_version(client, address, name)
+
             self._emit_status(address, name, "subscribed")
 
             while client.is_connected and not self._stop.is_set():

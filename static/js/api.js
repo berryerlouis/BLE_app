@@ -129,4 +129,45 @@ export const api = {
     }
     return await res.json();
   },
+
+  // --- Satellite Firmware (USB flashing) ---
+
+  async fetchFirmwareList() {
+    const res = await fetch('/api/firmware');
+    if (!res.ok) throw new Error('Erreur récupération des firmwares');
+    return await res.json();
+  },
+
+  async uploadFirmware(file) {
+    const body = new FormData();
+    body.append('file', file, file.name);
+    const res = await fetch('/api/firmware/upload', { method: 'POST', body });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erreur envoi du firmware');
+    return data;
+  },
+
+  async deleteFirmware(filename) {
+    const res = await fetch(`/api/firmware/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erreur suppression du firmware');
+    return data;
+  },
+
+  async fetchSerialPorts() {
+    const res = await fetch('/api/firmware/ports');
+    if (!res.ok) throw new Error('Erreur récupération des ports série');
+    return await res.json();
+  },
+
+  async flashFirmware(port, filename) {
+    const res = await fetch('/api/firmware/flash', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ port, filename }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erreur lors du lancement de la mise à jour');
+    return data;
+  },
 };

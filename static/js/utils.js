@@ -100,6 +100,11 @@ export function getDeviceLinkState(device) {
       return { state, label: 'Connecté (abonnement...)', dotClass: 'dot-connecting', textClass: 'text-accent', icon: 'link', spin: false };
     case 'subscribed':
       return { state, label: 'En direct (données live)', dotClass: 'dot-online', textClass: 'text-online', icon: 'activity', spin: false };
+    case 'backfilling': {
+      const pending = device?.pending_samples;
+      const label = pending ? `Synchronisation (${pending} restants)` : 'Synchronisation des données...';
+      return { state, label, dotClass: 'dot-connecting', textClass: 'text-accent', icon: 'refresh-cw', spin: true };
+    }
     default:
       return { state: 'disconnected', label: 'Hors ligne', dotClass: 'dot-offline', textClass: 'text-offline', icon: 'wifi-off', spin: false };
   }

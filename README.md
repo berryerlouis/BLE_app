@@ -71,6 +71,8 @@ Le firmware `IMU_Capture` expose :
 - service `2A6F0001-...`
   - caractéristique `2A6F0002-...` en `notify`: structure `{ax, ay, az, gx, gy, gz, temp}` en floats little-endian
   - caractéristique `2A6F0003-...` en `notify`: structure `{voltage (float), percentage (uint8)}` de la batterie
+- service standard Device Information `180A`
+  - caractéristique Firmware Revision String `2A26`: version installée, par exemple `1.0.0`
 
 Le décodage est fait dans [ble_central/models.py](ble_central/models.py) et doit rester aligné avec la structure du firmware côté Arduino.
 
@@ -178,6 +180,39 @@ sudo ./scripts/update.sh
 ```
 
 > `secrets.yaml` étant ignoré par Git, il n’est pas écrasé par `git reset --hard origin/main`.
+
+## Mise à jour du firmware des satellites (USB)
+
+Le bouton **« Firmware »** dans l’en-tête ouvre une modal permettant de flasher un satellite
+IMU_Capture branché en USB sur la machine qui exécute l’app (pas de mise à jour sans fil/BLE :
+le satellite doit être connecté par câble).
+
+Flux :
+
+1. Compiler le firmware (tâche VS Code **Arduino: Verify** dans `IMU_Capture/`) : cela produit
+   entre autres un paquet DFU `IMU_Capture.ino.zip` dans `IMU_Capture/build/cli/`.
+2. Mettre à jour `IMU_Capture/VERSION` et `IMU_Capture/Version.h`, puis copier le paquet dans
+  `firmware/` sous un nom versionné, par exemple `IMU_Capture-1.1.0.zip`.
+3. Commiter et pousser ce paquet avec l'application. Il est ainsi livré automatiquement sur chaque
+  Raspberry Pi lors de la mise à jour de l'app. L'import dans la modal reste disponible pour un test local.
+4. Le dashboard affiche la version lue sur chaque satellite connecté. Lorsqu'un paquet présent dans
+  `firmware/` est plus récent, un indicateur de mise à jour ouvre directement la modal avec ce paquet sélectionné.
+5. Choisir le port série du satellite (détecté automatiquement via son VID USB Seeed `0x2886`),
+   puis cliquer sur **« Flasher »**.
+
+Sous le capot, l’app reproduit le flux d’upload d’`arduino-cli` pour ces cartes (bootloader
+Adafruit) : réveil du bootloader par un « touch » série à 1200 bauds, puis transfert du paquet
+DFU via `adafruit-nrfutil dfu serial`. Nécessite les paquets `pyserial` et `adafruit-nrfutil`
+(déjà listés dans `requirements.txt`).
+
+Endpoints exposés :
+
+- `GET /api/firmware` : liste des paquets `.zip` versionnés disponibles
+- `POST /api/firmware/upload` : importe un nouveau paquet (`multipart/form-data`, champ `file`)
+- `DELETE /api/firmware/{filename}` : supprime un paquet importé
+- `GET /api/firmware/ports` : liste les ports série disponibles
+- `POST /api/firmware/flash` : lance le flashage `{ "port": "...", "filename": "..." }` ; la
+  progression est diffusée aux clients connectés via WebSocket (`type: "firmware_flash"`)
 
 ## Récupérer les logs une fois le Pi sur site
 

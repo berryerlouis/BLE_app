@@ -173,9 +173,12 @@ export class ChartManager {
 
     const threshold = currentThreshold ?? CONFIG.DEFAULT_IMPACT_THRESHOLD;
 
+    // Logs are stored in arrival order, not recording order: a backfilled (historical)
+    // sample replayed after a reconnect carries an older timestamp than the live samples
+    // it's interleaved with, so the timeline must be re-sorted before charting it.
     // Decimate very large sessions so charts stay fast to draw: keep every Nth point
     // rather than dumping tens of thousands of points into Chart.js.
-    const imuLogs = logs.filter((msg) => msg.type === 'imu');
+    const imuLogs = logs.filter((msg) => msg.type === 'imu').sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
     const step = Math.max(1, Math.ceil(imuLogs.length / CONFIG.MAX_SESSION_RENDER_POINTS));
 
     for (let i = 0; i < imuLogs.length; i += step) {
