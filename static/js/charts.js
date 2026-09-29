@@ -125,7 +125,7 @@ export class ChartManager {
     if (this.charts) return this.charts;
 
     const accelDatasets = [
-      { label: '|a| (Magnitude)', color: '#ffffff', borderWidth: 2.2 },
+      { label: '|a| (pic 50 ms)', color: '#ffffff', borderWidth: 2.2 },
       { label: 'aX', color: CONFIG.COLORS.chartAx, hidden: true, borderWidth: 1.5 },
       { label: 'aY', color: CONFIG.COLORS.chartAy, hidden: true, borderWidth: 1.5 },
       { label: 'aZ', color: CONFIG.COLORS.chartAz, hidden: true, borderWidth: 1.5 },
@@ -143,7 +143,7 @@ export class ChartManager {
     ];
 
     this.charts = {
-      accel: this.createChart(accelCanvas, accelDatasets, 'Accélération (g)'),
+      accel: this.createChart(accelCanvas, accelDatasets, 'Pic accélération (g)'),
       gyro: this.createChart(gyroCanvas, gyroDatasets, 'Vitesse angulaire (dps)'),
       temp: this.createChart(tempCanvas, tempDatasets, 'Température (°C)'),
     };

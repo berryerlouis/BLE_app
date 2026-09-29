@@ -349,8 +349,8 @@ export class DashboardView {
           </div>
         </td>
 
-        <!-- Absolute G magnitude in real-time -->
-        <td class="col-g" data-label="|a| (G)">
+        <!-- Peak G magnitude reported for the latest 50 ms BLE window -->
+        <td class="col-g" data-label="Pic |a| (50 ms)">
           ${this.getGValueBadgeHtml(mag, threshold, hasAlert)}
         </td>
 

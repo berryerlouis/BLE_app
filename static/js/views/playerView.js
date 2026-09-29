@@ -334,7 +334,7 @@ export class PlayerView {
     const battery = getBatteryStatus(batteryPct, batteryCharging);
 
     if (this.kpiLiveG) {
-      const gLabel = isHistorical ? 'Dernière Accel' : 'Accélération |a|';
+      const gLabel = isHistorical ? 'Dernier pic accel.' : 'Pic accélération |a| (50 ms)';
       const labelEl = this.kpiLiveG.closest('.kpi-content')?.querySelector('.kpi-label');
       if (labelEl) labelEl.textContent = gLabel;
 
