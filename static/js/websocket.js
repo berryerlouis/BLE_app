@@ -1,8 +1,8 @@
 /**
  * WebSocket Live Data Client
  */
-import { CONFIG } from './config.js';
-import { state } from './state.js?v=20260929-mobile-status';
+import { CONFIG } from './config.js?v=20260929-rotation-threshold';
+import { state } from './state.js?v=20260929-rotation-threshold';
 
 class WebSocketClient {
   constructor() {
