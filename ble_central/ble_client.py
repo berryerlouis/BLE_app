@@ -435,7 +435,13 @@ class DeviceManager:
                 await self._start_notify(client, self._cfg["battery_history_char_uuid"], battery_history_handler)
                 await self._start_notify(client, self._cfg["sync_status_char_uuid"], sync_status_handler)
                 await self._sync_time(client, address, name)
-            except (asyncio.TimeoutError, BleakError) as exc:
+            except asyncio.TimeoutError:
+                log.warning(
+                    "Offline-buffering setup timed out for %s (%s); live telemetry remains active",
+                    name,
+                    address,
+                )
+            except BleakError as exc:
                 log.info("Offline-buffering is unavailable for %s (%s): %s", name, address, exc)
 
             await self._read_firmware_version(client, address, name)
