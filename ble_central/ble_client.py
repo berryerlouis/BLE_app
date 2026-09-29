@@ -323,10 +323,14 @@ class DeviceManager:
                 if len(payload) != 2:
                     log.warning("Invalid RSSI data from %s (%s): %d bytes", name, address, len(payload))
                     return
+                rssi = struct.unpack("<h", payload)[0]
+                if not -127 <= rssi < 0:
+                    log.debug("Ignoring invalid RSSI from %s (%s): %d dBm", name, address, rssi)
+                    return
                 self._queue.put_nowait(
                     {
                         "type": "rssi",
-                        "rssi": struct.unpack("<h", payload)[0],
+                        "rssi": rssi,
                         "device_id": address,
                         "device_name": name,
                         "timestamp": time.time(),

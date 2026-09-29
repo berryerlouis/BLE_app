@@ -77,10 +77,10 @@ export function getBatteryStatus(percentage, charging = false) {
 }
 
 export function getRssiStatus(rssi) {
-  if (rssi === undefined || rssi === null) {
+  const val = Number(rssi);
+  if (rssi === undefined || rssi === null || !Number.isFinite(val) || val < -127 || val >= 0) {
     return { level: 'unknown', icon: 'signal-zero', text: '--', label: '--', color: 'var(--color-muted, #888)' };
   }
-  const val = Number(rssi);
   if (val >= -60) return { level: 'good', icon: 'signal-high', text: `${val} dBm`, label: 'Bon', color: 'var(--color-success)' };
   if (val >= -75) return { level: 'medium', icon: 'signal-medium', text: `${val} dBm`, label: 'Moyen', color: 'var(--color-accent)' };
   return { level: 'bad', icon: 'signal-low', text: `${val} dBm`, label: 'Faible', color: 'var(--color-danger)' };
