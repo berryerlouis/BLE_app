@@ -14,7 +14,7 @@ export const CONFIG = {
   MAX_DOM_LOG_LINES: 300,         // Keep DOM log panel performant
   DEFAULT_IMPACT_THRESHOLD: 8.0,  // in g
   MAX_IMPACT_THRESHOLD: 200.0,
-  DEFAULT_ROTATION_THRESHOLD: 200.0, // in degrees/s, magnitude of the gyro vector
+  DEFAULT_ROTATION_THRESHOLD: 800.0, // in degrees/s, magnitude of the gyro vector
   MAX_ROTATION_THRESHOLD: 2000.0,
   LABEL_SNOOZE_MS: 60 * 1000,
   WS_RECONNECT_DELAY_MS: 2000,

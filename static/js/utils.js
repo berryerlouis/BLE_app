@@ -1,7 +1,7 @@
 /**
  * Formatting & Math Utility Functions
  */
-import { CONFIG } from './config.js';
+import { CONFIG } from './config.js?v=20260929-rotation-800';
 
 export function fmt(num, digits = 2) {
   if (num === null || num === undefined || Number.isNaN(Number(num))) {

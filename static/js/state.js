@@ -1,7 +1,7 @@
 /**
  * Application State Store
  */
-import { CONFIG } from './config.js?v=20260929-rotation-threshold';
+import { CONFIG } from './config.js?v=20260929-rotation-800';
 
 class StateStore {
   constructor() {

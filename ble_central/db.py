@@ -17,7 +17,8 @@ from pathlib import Path
 DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "data.db"
 MAX_LOG_ENTRIES_PER_DEVICE = 2000
 DEFAULT_IMPACT_THRESHOLD = 8.0  # g, magnitude of the acceleration vector
-DEFAULT_ROTATION_THRESHOLD = 200.0  # degrees/s, magnitude of the gyro vector
+DEFAULT_ROTATION_THRESHOLD = 800.0  # degrees/s, magnitude of the gyro vector
+PREVIOUS_DEFAULT_ROTATION_THRESHOLD = 200.0
 
 
 class Database:
@@ -167,10 +168,14 @@ class Database:
         self._conn.commit()
 
     def _backfill_rotation_columns(self) -> None:
-        """Initialize rotation settings for devices created before gyro alerts existed."""
+        """Initialize rotation settings and upgrade the previous default without overriding custom values."""
         self._conn.execute(
             "UPDATE devices SET rotation_threshold = ? WHERE rotation_threshold IS NULL",
             (DEFAULT_ROTATION_THRESHOLD,),
+        )
+        self._conn.execute(
+            "UPDATE devices SET rotation_threshold = ? WHERE rotation_threshold = ?",
+            (DEFAULT_ROTATION_THRESHOLD, PREVIOUS_DEFAULT_ROTATION_THRESHOLD),
         )
         self._conn.execute(
             "UPDATE devices SET rotation_alert = 0 WHERE rotation_alert IS NULL"
