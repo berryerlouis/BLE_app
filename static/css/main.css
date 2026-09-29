@@ -801,6 +801,39 @@ tr.device-row.disconnected-row {
 .rssi-badge.rssi-bad .rssi-label { color: var(--color-danger); }
 .rssi-badge.rssi-unknown .rssi-label { color: var(--text-muted, #888); }
 
+.device-sync-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 150px;
+  margin-top: 6px;
+}
+
+.device-sync-track {
+  flex: 1;
+  height: 5px;
+  overflow: hidden;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+}
+
+.device-sync-fill {
+  display: block;
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: inherit;
+  transition: width 0.2s ease;
+}
+
+.device-sync-percent {
+  min-width: 30px;
+  color: var(--text-muted);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.7rem;
+  text-align: right;
+}
+
 .player-cell-content {
   display: flex;
   align-items: center;

@@ -114,7 +114,9 @@ export function getDeviceLinkState(device) {
       return { state, label: 'En direct (données live)', dotClass: 'dot-online', textClass: 'text-online', icon: 'activity', spin: false };
     case 'backfilling': {
       const pending = device?.pending_samples;
-      const label = pending ? `Synchronisation (${pending} restants)` : 'Synchronisation des données...';
+      const progress = Number(device?.sync_progress);
+      const percentage = Number.isFinite(progress) ? ` ${Math.round(progress * 100)}%` : '';
+      const label = pending ? `Synchronisation${percentage} (${pending} restants)` : `Synchronisation des données...${percentage}`;
       return { state, label, dotClass: 'dot-connecting', textClass: 'text-accent', icon: 'refresh-cw', spin: true };
     }
     default:

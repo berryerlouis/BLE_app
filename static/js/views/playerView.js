@@ -2,7 +2,7 @@
  * Player Detail View (Second Page)
  */
 import { api } from '../api.js?v=20260929-rotation-threshold';
-import { state } from '../state.js?v=20260929-rotation-threshold';
+import { state } from '../state.js?v=20260929-sync-progress';
 import {
   fmt,
   calcAccelMagnitude,
@@ -16,7 +16,7 @@ import {
   escapeHtml,
   progressBar,
   sessionLoader,
-} from '../utils.js?v=20260929-rotation-threshold';
+} from '../utils.js?v=20260929-sync-progress';
 
 export class PlayerView {
   constructor(chartManager, onBack, onEditLabel, onSelectSession) {

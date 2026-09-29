@@ -800,8 +800,17 @@ def _update_state(app: web.Application, item: dict) -> list[dict]:
         summary["rssi"] = item["rssi"]
     elif msg_type == "sync_status":
         # Progress of the satellite replaying data it buffered while disconnected.
-        summary["backfilling"] = item.get("backfilling", False)
-        summary["backfill_pending"] = item.get("pending_imu", 0) + item.get("pending_battery", 0)
+        pending = item.get("pending_imu", 0) + item.get("pending_battery", 0)
+        is_backfilling = bool(item.get("backfilling", False))
+        if is_backfilling and (not summary.get("backfilling") or pending > summary.get("sync_total", 0)):
+            summary["sync_total"] = pending
+        summary["backfilling"] = is_backfilling
+        summary["pending_samples"] = pending
+        summary["sync_progress"] = (
+            max(0.0, min(1.0, 1.0 - pending / summary["sync_total"]))
+            if summary.get("sync_total")
+            else 1.0
+        )
     elif msg_type == "firmware_version":
         summary["firmware_version"] = item.get("version")
         _refresh_firmware_status(summary)

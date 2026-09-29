@@ -3,7 +3,7 @@
  * High-performance RAF rendering & Full Session Zoom/Pan
  */
 import { CONFIG } from './config.js?v=20260929-rotation-800';
-import { calcAccelMagnitude, calcGyroMagnitude } from './utils.js?v=20260929-rotation-threshold';
+import { calcAccelMagnitude, calcGyroMagnitude } from './utils.js?v=20260929-sync-progress';
 
 export class ChartManager {
   constructor() {

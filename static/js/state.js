@@ -251,6 +251,15 @@ class StateStore {
       syncCompleted = existing.state === 'backfilling' && !msg.backfilling;
       updated.state = msg.backfilling ? 'backfilling' : syncCompleted ? 'subscribed' : existing.state;
       updated.pending_samples = (msg.pending_imu || 0) + (msg.pending_battery || 0);
+      if (msg.backfilling && (!existing.backfilling || updated.pending_samples > (existing.sync_total || 0))) {
+        updated.sync_total = updated.pending_samples;
+      }
+      if (updated.sync_total) {
+        updated.sync_progress = Math.max(0, Math.min(1, 1 - updated.pending_samples / updated.sync_total));
+      } else if (!msg.backfilling) {
+        updated.sync_progress = 1;
+      }
+      updated.backfilling = Boolean(msg.backfilling);
     } else if (msg.type === 'firmware_version') {
       updated.firmware_version = msg.version;
       if (msg.latest_firmware_version !== undefined) {

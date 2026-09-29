@@ -3,7 +3,7 @@
  */
 import { CONFIG } from '../config.js?v=20260929-rotation-800';
 import { api } from '../api.js?v=20260929-rotation-threshold';
-import { state } from '../state.js?v=20260929-rotation-threshold';
+import { state } from '../state.js?v=20260929-sync-progress';
 import {
   fmt,
   calcAccelMagnitude,
@@ -17,7 +17,7 @@ import {
   getDeviceLinkState,
   escapeHtml,
   progressBar,
-} from '../utils.js?v=20260929-rotation-threshold';
+} from '../utils.js?v=20260929-sync-progress';
 
 export class DashboardView {
   constructor(onOpenPlayer, onEditLabel, onNewSession, onEndSession, onSelectSession, onRenameSession, onDeleteSession, onFlashFirmware) {
@@ -303,6 +303,18 @@ export class DashboardView {
     `;
   }
 
+  getSyncProgressHtml(device) {
+    const isSyncing = device.state === 'backfilling';
+    const progress = Number(device.sync_progress);
+    const percentage = Math.round(Math.max(0, Math.min(1, Number.isFinite(progress) ? progress : 0)) * 100);
+    return `
+      <div class="device-sync-progress ${isSyncing ? '' : 'hidden'}" aria-label="Progression de synchronisation">
+        <div class="device-sync-track"><span class="device-sync-fill" style="width: ${percentage}%"></span></div>
+        <span class="device-sync-percent">${percentage}%</span>
+      </div>
+    `;
+  }
+
   /** Small badge under the MAC address showing the satellite's reported firmware version,
    * turned into a clickable "update available" pill when a newer USB-flashable build exists.
    */
@@ -346,13 +358,14 @@ export class DashboardView {
             <span class="status-dot ${link.dotClass}"></span>
             <span class="status-text ${link.textClass}" data-state="${link.state}">
               <i data-lucide="${link.icon}" class="${link.spin ? 'icon-spin' : ''}" style="width:13px;height:13px;"></i>
-              ${link.label}
+              <span class="status-label">${link.label}</span>
             </span>
           </div>
           <div class="rssi-badge rssi-${rssi.level}" title="Signal BLE : ${rssi.text}">
             <i data-lucide="${rssi.icon}" style="color: ${rssi.color}"></i>
             <span class="rssi-label">${rssi.text}</span>
           </div>
+          ${this.getSyncProgressHtml(d)}
         </td>
 
         <!-- Player info -->
@@ -468,9 +481,24 @@ export class DashboardView {
     if (statusText && statusText.dataset.state !== link.state) {
       statusText.dataset.state = link.state;
       statusText.className = `status-text ${link.textClass}`;
-      statusText.innerHTML = `<i data-lucide="${link.icon}" class="${link.spin ? 'icon-spin' : ''}" style="width:13px;height:13px;"></i> ${link.label}`;
+      statusText.innerHTML = `<i data-lucide="${link.icon}" class="${link.spin ? 'icon-spin' : ''}" style="width:13px;height:13px;"></i> <span class="status-label">${link.label}</span>`;
       if (window.lucide) window.lucide.createIcons();
+    } else {
+      const statusLabel = statusText?.querySelector('.status-label');
+      if (statusLabel && statusLabel.textContent !== link.label) {
+        statusLabel.textContent = link.label;
+      }
     }
+
+    const syncProgress = row.querySelector('.device-sync-progress');
+    const syncFill = row.querySelector('.device-sync-fill');
+    const syncPercent = row.querySelector('.device-sync-percent');
+    const isSyncing = d.state === 'backfilling';
+    const progress = Number(d.sync_progress);
+    const percentage = Math.round(Math.max(0, Math.min(1, Number.isFinite(progress) ? progress : 0)) * 100);
+    syncProgress?.classList.toggle('hidden', !isSyncing);
+    if (syncFill) syncFill.style.width = `${percentage}%`;
+    if (syncPercent) syncPercent.textContent = `${percentage}%`;
 
     // Player Avatar & Name
     const avatar = row.querySelector('.player-avatar');
