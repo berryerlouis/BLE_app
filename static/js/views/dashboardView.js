@@ -307,7 +307,7 @@ export class DashboardView {
     const threshold = getDeviceThreshold(d);
     const mag = d.aX !== undefined ? calcAccelMagnitude(d.aX, d.aY, d.aZ) : null;
     const temp = d.temp;
-    const battery = getBatteryStatus(d.battery_percentage);
+    const battery = getBatteryStatus(d.battery_percentage, d.battery_charging);
     const rssi = getRssiStatus(d.rssi);
     const displayName = getDeviceDisplayName(d);
     const mac = d.device_id;
@@ -381,9 +381,10 @@ export class DashboardView {
 
         <!-- Battery -->
         <td class="col-battery" data-label="Batterie">
-          <div class="battery-cell" title="${d.battery_voltage !== undefined ? `${fmt(d.battery_voltage, 2)} V` : ''}">
+          <div class="battery-cell" data-charging="${battery.charging}" title="${battery.charging ? 'Batterie en charge' : d.battery_voltage !== undefined ? `${fmt(d.battery_voltage, 2)} V` : ''}">
             <i data-lucide="${battery.icon}" class="battery-icon" style="color: ${battery.color}"></i>
             <span class="battery-text">${battery.text}</span>
+            <span class="battery-charging-label ${battery.charging ? '' : 'hidden'}">En charge</span>
           </div>
         </td>
 
@@ -408,7 +409,7 @@ export class DashboardView {
     const threshold = getDeviceThreshold(d);
     const mag = d.aX !== undefined ? calcAccelMagnitude(d.aX, d.aY, d.aZ) : null;
     const temp = d.temp;
-    const battery = getBatteryStatus(d.battery_percentage);
+    const battery = getBatteryStatus(d.battery_percentage, d.battery_charging);
     const rssi = getRssiStatus(d.rssi);
     const displayName = getDeviceDisplayName(d);
     const lastSeen = formatDateTime(d.last_update);
@@ -507,7 +508,16 @@ export class DashboardView {
     }
     const batteryCell = row.querySelector('.col-battery .battery-cell');
     if (batteryCell) {
-      batteryCell.title = d.battery_voltage !== undefined ? `${fmt(d.battery_voltage, 2)} V` : '';
+      if (batteryCell.dataset.charging !== String(battery.charging)) {
+        batteryCell.dataset.charging = String(battery.charging);
+        batteryCell.innerHTML = `
+          <i data-lucide="${battery.icon}" class="battery-icon" style="color: ${battery.color}"></i>
+          <span class="battery-text">${battery.text}</span>
+          <span class="battery-charging-label ${battery.charging ? '' : 'hidden'}">En charge</span>
+        `;
+        if (window.lucide) window.lucide.createIcons({ root: batteryCell });
+      }
+      batteryCell.title = battery.charging ? 'Batterie en charge' : d.battery_voltage !== undefined ? `${fmt(d.battery_voltage, 2)} V` : '';
     }
 
     // RSSI

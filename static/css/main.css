@@ -389,6 +389,32 @@ body {
   color: var(--text-secondary);
 }
 
+.battery-charging-label {
+  color: var(--color-success);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.usb-satellite-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  border-radius: var(--radius-full);
+  color: var(--color-success);
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.usb-satellite-status svg {
+  width: 15px;
+  height: 15px;
+}
+
 /* ==========================================================================
    Status Dots & Pulsing Effects
    ========================================================================== */
@@ -1843,7 +1869,8 @@ html, body {
   .header-session-controls .btn { width: 100%; justify-content: center; }
 
   .header-actions { margin-left: auto; }
-  .server-status-pill { padding: 5px 10px; font-size: 0.76rem; }
+  .server-status-pill,
+  .usb-satellite-status { padding: 5px 10px; font-size: 0.76rem; }
 
   .kpi-banner-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

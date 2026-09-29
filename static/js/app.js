@@ -37,6 +37,7 @@ class App {
     // Global elements
     this.serverDot = document.getElementById('conn-dot');
     this.serverText = document.getElementById('conn-text');
+    this.usbSatelliteStatus = document.getElementById('usb-satellite-status');
     this.footerVersion = document.getElementById('footer-version');
     this.footerAuthor = document.getElementById('footer-author');
     this.updateStatus = document.getElementById('update-status');
@@ -70,12 +71,39 @@ class App {
     // 5b. Live match duration ticker (updates the header status card every second)
     setInterval(() => this.dashboardView.tickMatchTimer(), 1000);
 
+    // USB-connected satellites do not advertise their serial presence over the WebSocket.
+    await this.refreshUsbSatelliteStatus();
+    setInterval(() => this.refreshUsbSatelliteStatus(), 5000);
+
     // 6. Show initial dashboard view
     this.showDashboardView();
 
     // 7. Initialize Lucide icons
     if (window.lucide) {
       window.lucide.createIcons();
+    }
+  }
+
+  async refreshUsbSatelliteStatus() {
+    if (!this.usbSatelliteStatus) return;
+
+    try {
+      const ports = await api.fetchSerialPorts();
+      const satellites = ports.filter((port) => port.likely_satellite);
+      const count = satellites.length;
+      const portNames = satellites.map((port) => port.device).join(', ');
+
+      this.usbSatelliteStatus.classList.toggle('hidden', count === 0);
+      this.usbSatelliteStatus.title = count
+        ? `${count} satellite${count > 1 ? 's' : ''} connecté${count > 1 ? 's' : ''} en USB : ${portNames}`
+        : '';
+      this.usbSatelliteStatus.innerHTML = count
+        ? `<i data-lucide="usb"></i><span>${count} satellite${count > 1 ? 's' : ''} USB</span>`
+        : '';
+      if (count && window.lucide) window.lucide.createIcons({ root: this.usbSatelliteStatus });
+    } catch (err) {
+      console.warn('Failed to refresh USB satellite status:', err);
+      this.usbSatelliteStatus.classList.add('hidden');
     }
   }
 

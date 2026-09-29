@@ -200,6 +200,10 @@ Flux :
 5. Choisir le port série du satellite (détecté automatiquement via son VID USB Seeed `0x2886`),
    puis cliquer sur **« Flasher »**.
 
+Lorsqu'un satellite XIAO est détecté par USB, le dashboard l'indique dans l'en-tête. Après
+l'installation du firmware incluant l'état USB VBUS, la batterie du satellite affiche aussi
+**« En charge »** dans le tableau et dans sa fiche détail.
+
 Sous le capot, l’app reproduit le flux d’upload d’`arduino-cli` pour ces cartes (bootloader
 Adafruit) : réveil du bootloader par un « touch » série à 1200 bauds, puis transfert du paquet
 DFU via `adafruit-nrfutil dfu serial`. Nécessite les paquets `pyserial` et `adafruit-nrfutil`

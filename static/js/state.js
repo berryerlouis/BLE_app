@@ -211,6 +211,7 @@ class StateStore {
       if (!isHistorical) {
         if (msg.voltage !== undefined) updated.battery_voltage = msg.voltage;
         if (msg.percentage !== undefined) updated.battery_percentage = msg.percentage;
+        if (msg.charging !== undefined) updated.battery_charging = msg.charging;
       }
     } else if (msg.type === 'rssi') {
       updated.rssi = msg.rssi;

@@ -306,6 +306,7 @@ export class PlayerView {
     let temp = dev.temp;
     let batteryPct = dev.battery_percentage;
     let batteryV = dev.battery_voltage;
+    let batteryCharging = dev.battery_charging;
 
     if (isHistorical && logs.length > 0) {
       // Calculate metrics from this specific historical session's data
@@ -321,6 +322,7 @@ export class PlayerView {
         } else if (item.type === 'battery') {
           if (item.percentage !== undefined) batteryPct = item.percentage;
           if (item.voltage !== undefined) batteryV = item.voltage;
+          if (item.charging !== undefined) batteryCharging = item.charging;
         }
       }
     } else {
@@ -329,7 +331,7 @@ export class PlayerView {
       maxG = Math.max(state.getMaxG(dev.device_id), mag);
     }
 
-    const battery = getBatteryStatus(batteryPct);
+    const battery = getBatteryStatus(batteryPct, batteryCharging);
 
     if (this.kpiLiveG) {
       const gLabel = isHistorical ? 'Dernière Accel' : 'Accélération |a|';
@@ -351,6 +353,7 @@ export class PlayerView {
     if (this.kpiBattery) {
       this.kpiBattery.innerHTML = `
         <span style="color: ${battery.color}">${battery.text}</span>
+        ${battery.charging ? '<small class="battery-charging-label">En charge</small>' : ''}
         ${batteryV !== undefined ? `<small class="kpi-subval">(${fmt(batteryV, 2)}V)</small>` : ''}
       `;
     }

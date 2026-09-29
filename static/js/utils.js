@@ -64,15 +64,16 @@ export function formatDuration(totalSeconds) {
   return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
 
-export function getBatteryStatus(percentage) {
+export function getBatteryStatus(percentage, charging = false) {
   if (percentage === undefined || percentage === null) {
-    return { level: 'unknown', icon: 'battery-medium', text: '--' };
+    return { level: 'unknown', icon: charging ? 'battery-charging' : 'battery-medium', text: '--', charging };
   }
   const pct = Math.max(0, Math.min(100, Math.round(percentage)));
-  if (pct > 75) return { level: 'full', icon: 'battery-full', text: `${pct}%`, color: 'var(--color-success)' };
-  if (pct > 35) return { level: 'medium', icon: 'battery-medium', text: `${pct}%`, color: 'var(--color-accent)' };
-  if (pct > 15) return { level: 'low', icon: 'battery-low', text: `${pct}%`, color: 'var(--color-warning)' };
-  return { level: 'critical', icon: 'battery-warning', text: `${pct}%`, color: 'var(--color-danger)' };
+  const icon = charging ? 'battery-charging' : pct > 75 ? 'battery-full' : pct > 35 ? 'battery-medium' : pct > 15 ? 'battery-low' : 'battery-warning';
+  if (pct > 75) return { level: 'full', icon, text: `${pct}%`, color: 'var(--color-success)', charging };
+  if (pct > 35) return { level: 'medium', icon, text: `${pct}%`, color: 'var(--color-accent)', charging };
+  if (pct > 15) return { level: 'low', icon, text: `${pct}%`, color: 'var(--color-warning)', charging };
+  return { level: 'critical', icon, text: `${pct}%`, color: 'var(--color-danger)', charging };
 }
 
 export function getRssiStatus(rssi) {

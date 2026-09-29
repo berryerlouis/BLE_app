@@ -654,6 +654,8 @@ def _update_state(app: web.Application, item: dict) -> dict | None:
                 summary["battery_voltage"] = item["voltage"]
             if "percentage" in item:
                 summary["battery_percentage"] = item["percentage"]
+            if "charging" in item:
+                summary["battery_charging"] = item["charging"]
     elif msg_type == "rssi":
         summary["rssi"] = item["rssi"]
     elif msg_type == "sync_status":
