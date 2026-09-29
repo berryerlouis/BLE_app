@@ -156,14 +156,16 @@ export class PlayerView {
 
   async showEntireSession() {
     const deviceId = state.currentDeviceId;
-    const sessionId = state.selectedSessionId;
+    const sessionId = state.selectedSessionId ?? state.activeSession?.id;
 
     // The live chart intentionally keeps a bounded rolling window. Load the
     // persisted match log before showing everything so earlier points remain available.
     if (deviceId && sessionId !== null) {
       try {
         const history = await api.fetchDeviceLog(deviceId, sessionId);
-        if (deviceId !== state.currentDeviceId || sessionId !== state.selectedSessionId) return;
+        const isStillViewingSession = state.selectedSessionId === sessionId
+          || (state.selectedSessionId === null && state.activeSession?.id === sessionId);
+        if (deviceId !== state.currentDeviceId || !isStillViewingSession) return;
         state.currentDeviceLog = Array.isArray(history)
           ? history.sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0))
           : [];
@@ -228,6 +230,12 @@ export class PlayerView {
     this.renderHeader();
     
     this.updateHistoricalSessionBanner();
+    if (this.showAllBtn) {
+      const showAllLabel = isHistorical ? 'Tout le match' : 'Tout le Live';
+      this.showAllBtn.title = `Afficher l'intégralité ${isHistorical ? 'du match' : 'du Live'} sur le graphique`;
+      const label = this.showAllBtn.querySelector('span');
+      if (label) label.textContent = showAllLabel;
+    }
     
     if (this.realtimeToggle) {
       this.realtimeToggle.checked = !isHistorical;
