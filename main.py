@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import signal
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -88,7 +89,14 @@ async def main() -> None:
         telemetry_config=telemetry_config,
     )
     restart_requested = asyncio.Event()
+    shutdown_requested = asyncio.Event()
     app["request_restart"] = restart_requested
+    loop = asyncio.get_running_loop()
+    for shutdown_signal in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(shutdown_signal, shutdown_requested.set)
+        except NotImplementedError:
+            pass
 
     runner = web.AppRunner(app)
     await runner.setup()
@@ -100,12 +108,15 @@ async def main() -> None:
     log.info("Started %d BLE adapter manager(s)", len(ble_managers))
 
     restart_task = asyncio.create_task(restart_requested.wait())
+    shutdown_task = asyncio.create_task(shutdown_requested.wait())
     try:
         done, _ = await asyncio.wait(
-            (*ble_tasks, restart_task), return_when=asyncio.FIRST_COMPLETED
+            (*ble_tasks, restart_task, shutdown_task), return_when=asyncio.FIRST_COMPLETED
         )
         if restart_task in done:
             log.info("Graceful restart requested; disconnecting BLE satellites.")
+        elif shutdown_task in done:
+            log.info("Graceful shutdown requested; disconnecting BLE satellites.")
         else:
             log.error("A BLE adapter manager stopped; disconnecting all satellites.")
     except asyncio.CancelledError:
@@ -114,7 +125,8 @@ async def main() -> None:
         for manager in ble_managers:
             manager.stop()
         restart_task.cancel()
-        await asyncio.gather(*ble_tasks, restart_task, return_exceptions=True)
+        shutdown_task.cancel()
+        await asyncio.gather(*ble_tasks, restart_task, shutdown_task, return_exceptions=True)
         await runner.cleanup()
 
 
