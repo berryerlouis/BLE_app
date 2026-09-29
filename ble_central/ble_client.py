@@ -404,19 +404,6 @@ class DeviceManager:
 
             self._emit_status(address, name, "subscribed")
 
-            async def subscribe_rssi() -> None:
-                try:
-                    await self._start_notify(client, self._cfg["rssi_char_uuid"], rssi_handler)
-                    log.debug("Live RSSI notifications enabled for %s (%s)", name, address)
-                except (asyncio.TimeoutError, BleakError) as exc:
-                    log.info("Live RSSI characteristic is unavailable for %s (%s): %s", name, address, exc)
-
-            rssi_subscription_task = None
-            if self._cfg.get("rssi_enabled", False):
-                # RSSI is informational: never delay the usable connection while its
-                # optional CCCD write waits for the BLE stack.
-                rssi_subscription_task = asyncio.create_task(subscribe_rssi())
-
             firmware_refresh_interval = self._cfg.get("firmware_version_refresh_s", 10)
             next_firmware_refresh = time.monotonic() + firmware_refresh_interval
             while client.is_connected and not self._stop.is_set():
@@ -430,9 +417,6 @@ class DeviceManager:
                     await self._read_firmware_version(client, address, name)
                     next_firmware_refresh = time.monotonic() + firmware_refresh_interval
         finally:
-            if 'rssi_subscription_task' in locals() and rssi_subscription_task is not None:
-                rssi_subscription_task.cancel()
-                await asyncio.gather(rssi_subscription_task, return_exceptions=True)
             if client.is_connected:
                 await client.disconnect()
             self._emit_status(address, name, "disconnected")

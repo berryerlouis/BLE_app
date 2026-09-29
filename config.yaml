@@ -24,8 +24,8 @@ ble:
   imu_history_char_uuid: "2a6f0005-8a7d-4e8b-9c7d-4b2a0b9c0001"
   battery_history_char_uuid: "2a6f0006-8a7d-4e8b-9c7d-4b2a0b9c0001"
   sync_status_char_uuid: "2a6f0007-8a7d-4e8b-9c7d-4b2a0b9c0001"
-  # Live RSSI from the connected satellite; the subscription is optional and timeout-bounded.
-  rssi_enabled: true
+  # RSSI is collected from BLE advertisements, which does not interfere with the GATT link.
+  rssi_enabled: false
   rssi_char_uuid: "2a6f0008-8a7d-4e8b-9c7d-4b2a0b9c0001"
   # Standard Device Information Service / Firmware Revision String: read once per connection so
   # the dashboard can show the satellite's firmware version and flag when a newer one is available.
