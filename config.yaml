@@ -4,6 +4,12 @@ ble:
   # On Raspberry Pi, hci0 is the internal radio and hci1 is typically the USB adapter.
   # Verify with `bluetoothctl list` after plugging in the USB adapter.
   adapter: "hci1"
+  # Optional multi-adapter mode. Add every USB controller here to split satellites
+  # deterministically between radios. Keep a single entry until the extra adapters exist.
+  # adapters:
+  #   - "hci1"
+  #   - "hci2"
+  #   - "hci3"
   # Used automatically when the preferred USB adapter is unavailable.
   fallback_adapter: "hci0"
   adapter_retry_delay_s: 10
@@ -54,6 +60,13 @@ web:
 database:
   # SQLite file storing devices/history so the web page keeps past data across restarts.
   path: "data.db"
+
+# Keeps a 30-satellite deployment bounded: IMU is emitted by the firmware at 10 Hz,
+# while dashboard and SQLite receive a representative 5 Hz sample per satellite.
+telemetry:
+  queue_maxsize: 5000
+  websocket_imu_interval_ms: 200
+  persistence_imu_interval_ms: 200
 
 wifi_ap:
   ssid: "BLE-IMU-Central"

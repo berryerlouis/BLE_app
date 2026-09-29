@@ -32,11 +32,17 @@ def create_app(
     data_queue: "asyncio.Queue[dict]",
     db_path: Path | str = DEFAULT_DB_PATH,
     logs_dir: Path | str = DEFAULT_LOGS_DIR,
+    telemetry_config: dict | None = None,
 ) -> web.Application:
+    telemetry_config = telemetry_config or {}
     app = web.Application(middlewares=[_user_action_middleware])
     app["websockets"] = set()
     app["data_queue"] = data_queue
     app["db_queue"] = asyncio.Queue()
+    app["websocket_imu_interval_s"] = telemetry_config.get("websocket_imu_interval_ms", 200) / 1000
+    app["persistence_imu_interval_s"] = telemetry_config.get("persistence_imu_interval_ms", 200) / 1000
+    app["last_websocket_imu"] = {}
+    app["last_persisted_imu"] = {}
     app["logs_dir"] = Path(logs_dir)
     app["db_path"] = Path(db_path)
     app["devices"] = {}  # device_id -> summary dict
@@ -748,8 +754,6 @@ def _update_state(app: web.Application, item: dict) -> list[dict]:
                 summary["battery_percentage"] = item["percentage"]
             if "charging" in item:
                 summary["battery_charging"] = item["charging"]
-            if "battery_present" in item:
-                summary["battery_present"] = item["battery_present"]
     elif msg_type == "rssi":
         summary["rssi"] = item["rssi"]
     elif msg_type == "sync_status":
@@ -907,7 +911,8 @@ async def _broadcast_loop(app: web.Application) -> None:
         alert_events = _update_state(app, item)
         device_id = item.get("device_id")
         if device_id:
-            _persist_state(app, device_id, item)
+            if _should_emit_imu(app["last_persisted_imu"], item, app["persistence_imu_interval_s"]):
+                _persist_state(app, device_id, item)
         broadcast_item = item
         if item.get("type") == "firmware_version" and device_id:
             summary = app["devices"].get(device_id, {})
@@ -916,11 +921,26 @@ async def _broadcast_loop(app: web.Application) -> None:
                 "latest_firmware_version": summary.get("latest_firmware_version"),
                 "firmware_update_available": summary.get("firmware_update_available", False),
             }
-        await _broadcast_message(app, broadcast_item)
+        if _should_emit_imu(app["last_websocket_imu"], item, app["websocket_imu_interval_s"]):
+            await _broadcast_message(app, broadcast_item)
         for alert_event in alert_events:
             if device_id:
                 _persist_state(app, device_id, alert_event)
             await _broadcast_message(app, alert_event)
+
+
+def _should_emit_imu(last_emit: dict[str, float], item: dict, interval_s: float) -> bool:
+    """Always pass control/events; sample only high-rate live IMU telemetry per device."""
+    if item.get("type") != "imu" or item.get("historical"):
+        return True
+    device_id = item.get("device_id")
+    if not device_id:
+        return True
+    now = time.monotonic()
+    if now - last_emit.get(device_id, 0.0) < interval_s:
+        return False
+    last_emit[device_id] = now
+    return True
 
 
 async def _start_broadcaster(app: web.Application) -> None:

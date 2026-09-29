@@ -42,6 +42,8 @@ class DeviceManager:
         # WinRT (Windows) can't reliably resolve GATT services for two devices at once,
         # so only one connect+discovery runs at a time even with multiple satellites.
         self._connect_lock = asyncio.Lock()
+        self._dropped_messages = 0
+        self._last_drop_log_time = 0.0
 
     def stop(self) -> None:
         self._stop.set()
@@ -52,6 +54,14 @@ class DeviceManager:
         if isinstance(raw, str):
             raw = [raw]
         return {n.strip().lower() for n in raw if n and n.strip()}
+
+    def _owns_device(self, address: str) -> bool:
+        """Assign a satellite to exactly one configured adapter across restarts."""
+        adapter_count = self._cfg.get("adapter_count", 1)
+        if adapter_count <= 1:
+            return True
+        address_value = int("".join(character for character in address if character.isalnum()), 16)
+        return address_value % adapter_count == self._cfg.get("adapter_index", 0)
 
     async def run_forever(self) -> None:
         """Watch BLE advertisements and spawn one connection session per discovered satellite."""
@@ -65,6 +75,8 @@ class DeviceManager:
             # Advertisements often omit the name, so the service UUID is the reliable match.
             uuids = {u.lower() for u in (advertisement_data.service_uuids or [])}
             if name.lower() not in target_names and service_uuid not in uuids:
+                return
+            if not self._owns_device(device.address):
                 return
             self._devices[device.address] = device
             self._seen_events.setdefault(device.address, asyncio.Event()).set()
@@ -197,6 +209,29 @@ class DeviceManager:
         except asyncio.TimeoutError:
             pass
 
+    def _enqueue(self, item: dict) -> None:
+        """Keep telemetry bounded; retain lifecycle messages when the app falls behind."""
+        try:
+            self._queue.put_nowait(item)
+            return
+        except asyncio.QueueFull:
+            pass
+
+        if item.get("type") == "imu":
+            self._dropped_messages += 1
+            now = time.monotonic()
+            if now - self._last_drop_log_time >= 10:
+                log.warning("Telemetry queue full; dropped %d IMU message(s)", self._dropped_messages)
+                self._dropped_messages = 0
+                self._last_drop_log_time = now
+            return
+
+        try:
+            self._queue.get_nowait()
+            self._queue.put_nowait(item)
+        except asyncio.QueueEmpty:
+            return
+
     def _emit_rssi(self, address: str, rssi: int | None) -> None:
         """Push an rssi update to the UI, throttled to avoid flooding the queue/DB."""
         if rssi is None:
@@ -206,7 +241,7 @@ class DeviceManager:
         if last_rssi is not None and abs(rssi - last_rssi) < 5 and (now - last_time) < 10:
             return
         self._last_rssi_emit[address] = (rssi, now)
-        self._queue.put_nowait({"type": "rssi", "device_id": address, "rssi": rssi, "timestamp": now})
+        self._enqueue({"type": "rssi", "device_id": address, "rssi": rssi, "timestamp": now})
 
     def _emit_status(self, address: str, name: str, state: str) -> None:
         """Push a BLE lifecycle transition (advertising/connecting/connected/subscribed/disconnected)."""
@@ -214,7 +249,7 @@ class DeviceManager:
             return
         self._link_state[address] = state
         connected = state in ("connected", "subscribed")
-        self._queue.put_nowait(
+        self._enqueue(
             {
                 "type": "status",
                 "device_id": address,
@@ -254,7 +289,7 @@ class DeviceManager:
             return
         if not version:
             return
-        self._queue.put_nowait(
+        self._enqueue(
             {
                 "type": "firmware_version",
                 "device_id": address,
@@ -291,7 +326,7 @@ class DeviceManager:
             def imu_handler(_sender, data: bytearray) -> None:
                 item = ImuData.from_bytes(bytes(data)).to_dict()
                 item.update(device_id=address, device_name=name)
-                self._queue.put_nowait(item)
+                self._enqueue(item)
 
             battery_notification_logged = False
 
@@ -311,14 +346,14 @@ class DeviceManager:
                     battery_notification_logged = True
                 item = battery.to_dict()
                 item.update(device_id=address, device_name=name)
-                self._queue.put_nowait(item)
+                self._enqueue(item)
 
             def battery_level_handler(_sender, data: bytearray) -> None:
                 payload = bytes(data)
                 if len(payload) != 1:
                     log.warning("Invalid standard battery data from %s (%s): %d bytes", name, address, len(payload))
                     return
-                self._queue.put_nowait(
+                self._enqueue(
                     {
                         "type": "battery",
                         "timestamp": time.time(),
@@ -337,7 +372,7 @@ class DeviceManager:
                 if not -127 <= rssi < 0:
                     log.debug("Ignoring invalid RSSI from %s (%s): %d dBm", name, address, rssi)
                     return
-                self._queue.put_nowait(
+                self._enqueue(
                     {
                         "type": "rssi",
                         "rssi": rssi,
@@ -354,7 +389,7 @@ class DeviceManager:
                     log.warning("Invalid IMU history sample from %s (%s): %s", name, address, exc)
                     return
                 item.update(device_id=address, device_name=name)
-                self._queue.put_nowait(item)
+                self._enqueue(item)
 
             def battery_history_handler(_sender, data: bytearray) -> None:
                 try:
@@ -363,7 +398,7 @@ class DeviceManager:
                     log.warning("Invalid battery history sample from %s (%s): %s", name, address, exc)
                     return
                 item.update(device_id=address, device_name=name)
-                self._queue.put_nowait(item)
+                self._enqueue(item)
 
             def sync_status_handler(_sender, data: bytearray) -> None:
                 try:
@@ -371,7 +406,7 @@ class DeviceManager:
                 except Exception as exc:
                     log.warning("Invalid sync status from %s (%s): %s", name, address, exc)
                     return
-                self._queue.put_nowait(
+                self._enqueue(
                     {
                         "type": "sync_status",
                         "device_id": address,

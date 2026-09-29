@@ -46,14 +46,47 @@ def load_config() -> dict:
         return yaml.safe_load(f)
 
 
+def create_ble_managers(ble_config: dict, data_queue: "asyncio.Queue[dict]") -> list[DeviceManager]:
+    """Create one independent scanner/connection pool per explicitly configured adapter."""
+    configured_adapters = ble_config.get("adapters")
+    if not configured_adapters:
+        return [DeviceManager(ble_config, data_queue)]
+
+    adapters = list(dict.fromkeys(adapter for adapter in configured_adapters if adapter))
+    if not adapters:
+        raise ValueError("ble.adapters must contain at least one Bluetooth adapter")
+
+    return [
+        DeviceManager(
+            {
+                **ble_config,
+                "adapter": adapter,
+                "fallback_adapter": None,
+                "adapter_index": index,
+                "adapter_count": len(adapters),
+            },
+            data_queue,
+        )
+        for index, adapter in enumerate(adapters)
+    ]
+
+
 async def main() -> None:
     config = load_config()
-    data_queue: "asyncio.Queue[dict]" = asyncio.Queue()
+    telemetry_config = config.get("telemetry", {})
+    data_queue: "asyncio.Queue[dict]" = asyncio.Queue(
+        maxsize=telemetry_config.get("queue_maxsize", 5000)
+    )
 
-    ble_manager = DeviceManager(config["ble"], data_queue)
+    ble_managers = create_ble_managers(config["ble"], data_queue)
     db_path = config.get("database", {}).get("path")
     db_path = (CONFIG_PATH.parent / db_path).resolve() if db_path else DEFAULT_DB_PATH
-    app = create_app(data_queue, db_path=db_path, logs_dir=LOGS_DIR)
+    app = create_app(
+        data_queue,
+        db_path=db_path,
+        logs_dir=LOGS_DIR,
+        telemetry_config=telemetry_config,
+    )
     restart_requested = asyncio.Event()
     app["request_restart"] = restart_requested
 
@@ -63,23 +96,25 @@ async def main() -> None:
     await site.start()
     log.info("Web dashboard available at http://%s:%s", config["web"]["host"], config["web"]["port"])
 
-    ble_task = asyncio.create_task(ble_manager.run_forever())
+    ble_tasks = [asyncio.create_task(manager.run_forever()) for manager in ble_managers]
+    log.info("Started %d BLE adapter manager(s)", len(ble_managers))
 
     restart_task = asyncio.create_task(restart_requested.wait())
     try:
         done, _ = await asyncio.wait(
-            (ble_task, restart_task), return_when=asyncio.FIRST_COMPLETED
+            (*ble_tasks, restart_task), return_when=asyncio.FIRST_COMPLETED
         )
         if restart_task in done:
             log.info("Graceful restart requested; disconnecting BLE satellites.")
-            ble_manager.stop()
-            await ble_task
+        else:
+            log.error("A BLE adapter manager stopped; disconnecting all satellites.")
     except asyncio.CancelledError:
         pass
     finally:
-        ble_manager.stop()
+        for manager in ble_managers:
+            manager.stop()
         restart_task.cancel()
-        await asyncio.gather(restart_task, return_exceptions=True)
+        await asyncio.gather(*ble_tasks, restart_task, return_exceptions=True)
         await runner.cleanup()
 
 

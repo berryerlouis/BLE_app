@@ -117,10 +117,19 @@ Le fichier [config.yaml](config.yaml) contient les paramètres applicatifs, nota
 - `ble.adapter`: contrôleur Bluetooth utilisé sur Raspberry Pi. Configurez `hci1` pour
   privilégier l'adaptateur USB plutôt que le module interne (`hci0`). Vérifiez les noms avec
   `bluetoothctl list` puis redémarrez le service.
+- `ble.adapters`: liste optionnelle des contrôleurs BLE (`hci1`, `hci2`, ...). La centrale crée
+  un scanner et un pool de connexions par adaptateur, puis attribue durablement chaque satellite à
+  une seule radio. Pour 30 satellites, configurez au moins trois adaptateurs USB et répartissez-les
+  physiquement pour limiter les interférences. Ne définissez cette liste qu'avec les contrôleurs
+  réellement présents; sinon conservez `ble.adapter` et son mécanisme de secours.
 - `ble.device_name`: nom des capteurs BLE attendus (`IMU Satellite`)
 - `ble.*_char_uuid`: UUIDs des services et caractéristiques du firmware
 - `ble.firmware_version_refresh_s`: intervalle de relecture de la version des satellites connectés,
   utile pour actualiser le dashboard après un flash USB
+- `telemetry.queue_maxsize`: nombre maximal de messages BLE en attente; au-delà, les lectures IMU
+  excédentaires sont écartées pour préserver la disponibilité de la centrale
+- `telemetry.websocket_imu_interval_ms` / `telemetry.persistence_imu_interval_ms`: cadence maximale
+  par satellite envoyée au dashboard et sauvegardée dans SQLite (200 ms, soit 5 Hz par défaut)
 - `ble.connect_timeout_s`: durée maximale d'une tentative de connexion GATT avant une nouvelle tentative
 - `ble.winrt_use_cached_services`: réutilise sous Windows le cache GATT pour accélérer les connexions; passez-le à `false` après une modification des services du firmware
 - `web.host` / `web.port`: adresse d’écoute et port du serveur web

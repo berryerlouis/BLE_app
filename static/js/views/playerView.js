@@ -348,7 +348,6 @@ export class PlayerView {
     let batteryPct = dev.battery_percentage;
     let batteryV = dev.battery_voltage;
     let batteryCharging = dev.battery_charging;
-    let batteryPresent = dev.battery_present;
 
     if (isHistorical && logs.length > 0) {
       // Calculate metrics from this specific historical session's data
@@ -365,7 +364,6 @@ export class PlayerView {
           if (item.percentage !== undefined) batteryPct = item.percentage;
           if (item.voltage !== undefined) batteryV = item.voltage;
           if (item.charging !== undefined) batteryCharging = item.charging;
-          if (item.battery_present !== undefined) batteryPresent = item.battery_present;
         }
       }
     } else {
@@ -374,7 +372,7 @@ export class PlayerView {
       maxG = Math.max(state.getMaxG(dev.device_id), mag);
     }
 
-    const battery = getBatteryStatus(batteryPct, batteryCharging, batteryPresent);
+    const battery = getBatteryStatus(batteryPct, batteryCharging);
 
     if (this.kpiLiveG) {
       const gLabel = isHistorical ? 'Dernier pic accel.' : 'Pic accélération |a| (50 ms)';
@@ -395,12 +393,10 @@ export class PlayerView {
 
     if (this.kpiBattery) {
       this.kpiBattery.innerHTML = `
-        <i data-lucide="${battery.icon}" style="color: ${battery.color}"></i>
         <span style="color: ${battery.color}">${battery.text}</span>
         ${battery.charging ? '<small class="battery-charging-label">En charge</small>' : ''}
-        ${!battery.usbOnly && batteryV !== undefined ? `<small class="kpi-subval">(${fmt(batteryV, 2)}V)</small>` : ''}
+        ${batteryV !== undefined ? `<small class="kpi-subval">(${fmt(batteryV, 2)}V)</small>` : ''}
       `;
-      if (window.lucide) window.lucide.createIcons({ root: this.kpiBattery });
     }
   }
 
