@@ -244,6 +244,12 @@ class StateStore {
       updated.pending_samples = (msg.pending_imu || 0) + (msg.pending_battery || 0);
     } else if (msg.type === 'firmware_version') {
       updated.firmware_version = msg.version;
+      if (msg.latest_firmware_version !== undefined) {
+        updated.latest_firmware_version = msg.latest_firmware_version;
+      }
+      if (msg.firmware_update_available !== undefined) {
+        updated.firmware_update_available = msg.firmware_update_available;
+      }
     } else if (msg.type === 'firmware_status') {
       updated.latest_firmware_version = msg.latest_firmware_version;
       updated.firmware_update_available = msg.firmware_update_available;

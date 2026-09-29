@@ -893,7 +893,15 @@ async def _broadcast_loop(app: web.Application) -> None:
         device_id = item.get("device_id")
         if device_id:
             _persist_state(app, device_id, item)
-        await _broadcast_message(app, item)
+        broadcast_item = item
+        if item.get("type") == "firmware_version" and device_id:
+            summary = app["devices"].get(device_id, {})
+            broadcast_item = {
+                **item,
+                "latest_firmware_version": summary.get("latest_firmware_version"),
+                "firmware_update_available": summary.get("firmware_update_available", False),
+            }
+        await _broadcast_message(app, broadcast_item)
         if impact_event:
             if device_id:
                 _persist_state(app, device_id, impact_event)
