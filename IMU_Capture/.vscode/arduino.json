@@ -1,0 +1,7 @@
+{
+    "board": "Seeeduino:nrf52:xiaonRF52840Sense",
+    "sketch": "IMU_Capture.ino",
+    "output": "build",
+    "port": "COM120",
+    "configuration": "softdevice=s140v6,debug=l0"
+}

@@ -1,0 +1,49 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Arduino: Verify",
+            "type": "process",
+            "command": "${env:LOCALAPPDATA}\\Programs\\Arduino IDE\\resources\\app\\lib\\backend\\resources\\arduino-cli.exe",
+            "args": [
+                "compile",
+                "--fqbn",
+                "Seeeduino:mbed:xiaonRF52840Sense",
+                "--build-path",
+                "${workspaceFolder}\\build\\cli",
+                "${workspaceFolder}"
+            ],
+            "problemMatcher": "$gcc",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Arduino: Upload",
+            "type": "process",
+            "command": "${env:LOCALAPPDATA}\\Programs\\Arduino IDE\\resources\\app\\lib\\backend\\resources\\arduino-cli.exe",
+            "args": [
+                "upload",
+                "--fqbn",
+                "Seeeduino:mbed:xiaonRF52840Sense",
+                "--input-dir",
+                "${workspaceFolder}\\build\\cli",
+                "--port",
+                "${input:arduinoPort}",
+                "${workspaceFolder}"
+            ],
+            "dependsOn": "Arduino: Verify",
+            "dependsOrder": "sequence",
+            "problemMatcher": "$gcc"
+        }
+    ],
+    "inputs": [
+        {
+            "id": "arduinoPort",
+            "type": "promptString",
+            "description": "Arduino serial port",
+            "default": "COM3"
+        }
+    ]
+}
