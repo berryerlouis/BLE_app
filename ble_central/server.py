@@ -47,6 +47,7 @@ def create_app(
     app["db_path"] = Path(db_path)
     app["devices"] = {}  # device_id -> summary dict
     app["logs"] = {}  # device_id -> deque of raw messages for active session
+    app["alert_active"] = {}  # (device_id, kind) -> last sample was above its threshold
     app["active_session"] = None
     app["db"] = Database(db_path)
     app["firmware_lock"] = asyncio.Lock()
@@ -726,7 +727,11 @@ def _update_state(app: web.Application, item: dict) -> list[dict]:
             if "rssi" in item:
                 summary["rssi"] = item["rssi"]
         magnitude = math.sqrt(item["aX"] ** 2 + item["aY"] ** 2 + item["aZ"] ** 2)
-        if magnitude >= summary["impact_threshold"] and not summary.get("impact_alert"):
+        # A latched alert is refreshed on each new impact (threshold re-crossed) and on a higher peak within one.
+        above = magnitude >= summary["impact_threshold"]
+        was_above = app["alert_active"].get((device_id, "impact"), False)
+        app["alert_active"][(device_id, "impact")] = above
+        if above and (not summary.get("impact_alert") or not was_above or magnitude > summary.get("impact_value", 0)):
             summary["impact_alert"] = True
             summary["impact_value"] = magnitude
             alert_events.append({
@@ -739,7 +744,14 @@ def _update_state(app: web.Application, item: dict) -> list[dict]:
                 "historical": is_historical,
             })
         rotation_magnitude = math.sqrt(item["gX"] ** 2 + item["gY"] ** 2 + item["gZ"] ** 2)
-        if rotation_magnitude >= summary["rotation_threshold"] and not summary.get("rotation_alert"):
+        rotation_above = rotation_magnitude >= summary["rotation_threshold"]
+        rotation_was_above = app["alert_active"].get((device_id, "rotation"), False)
+        app["alert_active"][(device_id, "rotation")] = rotation_above
+        if rotation_above and (
+            not summary.get("rotation_alert")
+            or not rotation_was_above
+            or rotation_magnitude > summary.get("rotation_value", 0)
+        ):
             summary["rotation_alert"] = True
             summary["rotation_value"] = rotation_magnitude
             alert_events.append({

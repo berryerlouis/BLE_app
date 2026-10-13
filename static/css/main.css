@@ -2237,33 +2237,6 @@ html, body {
     display: none;
   }
 
-  #devices-table td.col-threshold {
-    display: flex;
-    grid-column: 2;
-    grid-row: 2;
-    align-self: end;
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid var(--border-subtle);
-    gap: 6px;
-  }
-
-  #devices-table td.col-threshold::before {
-    content: "Seuil";
-    font-size: 0.68rem;
-  }
-
-  #devices-table td.col-threshold .threshold-input-wrapper {
-    justify-content: flex-end;
-  }
-
-  #devices-table td.col-threshold .row-threshold-input {
-    width: 48px;
-    min-width: 48px;
-    padding-inline: 4px;
-    text-align: right;
-  }
-
   #no-devices-row td { display: block; text-align: center; }
   #no-devices-row td::before { content: none; }
 

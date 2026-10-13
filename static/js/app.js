@@ -7,7 +7,7 @@ import { state } from './state.js?v=20260929-live-rssi';
 import { wsClient } from './websocket.js?v=20260929-live-state';
 import { ChartManager } from './charts.js?v=20261013-peak-markers';
 import { ModalView } from './views/modalView.js?v=20260929-mobile-status';
-import { DashboardView } from './views/dashboardView.js?v=20261013-threshold-bars';
+import { DashboardView } from './views/dashboardView.js?v=20261013-no-threshold-col';
 import { PlayerView } from './views/playerView.js?v=20261013-threshold-slider';
 import { progressBar, sessionLoader } from './utils.js?v=20261013-threshold-bars';
 

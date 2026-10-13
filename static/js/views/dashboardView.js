@@ -1,17 +1,12 @@
 /**
  * Dashboard Overview View (First Page)
  */
-import { CONFIG } from '../config.js?v=20260929-rotation-800';
-import { api } from '../api.js?v=20260929-rotation-threshold';
 import { state } from '../state.js?v=20260929-live-rssi';
 import {
   fmt,
   calcAccelMagnitude,
-  calcGyroMagnitude,
-  getThresholdGauge,
   getDeviceDisplayName,
   getDeviceThreshold,
-  getDeviceRotationThreshold,
   formatDateTime,
   formatDuration,
   getBatteryStatus,
@@ -140,10 +135,6 @@ export class DashboardView {
         return;
       }
 
-      if (e.target.closest('.row-threshold-input, .row-rotation-threshold-input')) {
-        return; // don't open player when editing threshold
-      }
-
       const row = e.target.closest('tr.device-row');
       if (row) {
         const deviceId = row.dataset.deviceId;
@@ -154,43 +145,6 @@ export class DashboardView {
     };
 
     this.tbody?.addEventListener('click', onTableClick);
-
-    // Inline threshold change
-    this.tbody?.addEventListener('change', async (e) => {
-      const input = e.target.closest('.row-threshold-input, .row-rotation-threshold-input');
-      if (!input) return;
-
-      const deviceId = input.dataset.deviceId;
-      const threshold = Number(input.value);
-      const isRotation = input.classList.contains('row-rotation-threshold-input');
-      const maxThreshold = isRotation ? CONFIG.MAX_ROTATION_THRESHOLD : CONFIG.MAX_IMPACT_THRESHOLD;
-
-      if (!Number.isFinite(threshold) || threshold <= 0 || threshold > maxThreshold) {
-        const currentDev = state.devices.get(deviceId);
-        input.value = isRotation ? getDeviceRotationThreshold(currentDev) : getDeviceThreshold(currentDev);
-        return;
-      }
-
-      input.disabled = true;
-      try {
-        if (isRotation) {
-          await api.updateDeviceRotationThreshold(deviceId, threshold);
-        } else {
-          await api.updateDeviceThreshold(deviceId, threshold);
-        }
-        const currentDev = state.devices.get(deviceId);
-        if (currentDev) {
-          if (isRotation) currentDev.rotation_threshold = threshold;
-          else currentDev.impact_threshold = threshold;
-        }
-      } catch (err) {
-        console.error('Failed to update threshold:', err);
-        const currentDev = state.devices.get(deviceId);
-        input.value = isRotation ? getDeviceRotationThreshold(currentDev) : getDeviceThreshold(currentDev);
-      } finally {
-        input.disabled = false;
-      }
-    });
   }
 
   renderSessionSelector() {
@@ -305,21 +259,6 @@ export class DashboardView {
     `;
   }
 
-  getThresholdBarHtml(kind, value, threshold, latched) {
-    const gauge = getThresholdGauge(value, threshold, latched);
-    return `<div class="threshold-bar threshold-${gauge.level}" data-kind="${kind}"><span class="threshold-bar-fill" style="width: ${gauge.percent}%"></span></div>`;
-  }
-
-  updateThresholdBar(row, kind, value, threshold, latched) {
-    const bar = row.querySelector(`.threshold-bar[data-kind="${kind}"]`);
-    if (!bar) return;
-    const gauge = getThresholdGauge(value, threshold, latched);
-    const className = `threshold-bar threshold-${gauge.level}`;
-    if (bar.className !== className) bar.className = className;
-    const fill = bar.firstElementChild;
-    if (fill) fill.style.width = `${gauge.percent}%`;
-  }
-
   getSyncProgressHtml(device) {
     const isSyncing = device.state === 'backfilling';
     const progress = Number(device.sync_progress);
@@ -358,9 +297,7 @@ export class DashboardView {
     const link = getDeviceLinkState(d);
     const hasAlert = Boolean(d.impact_alert);
     const threshold = getDeviceThreshold(d);
-    const rotationThreshold = getDeviceRotationThreshold(d);
     const mag = d.aX !== undefined ? calcAccelMagnitude(d.aX, d.aY, d.aZ) : null;
-    const rotation = calcGyroMagnitude(d.gX, d.gY, d.gZ);
     const temp = d.temp;
     const battery = getBatteryStatus(d.battery_percentage, d.battery_charging);
     const rssi = getRssiStatus(d.rssi);
@@ -418,38 +355,6 @@ export class DashboardView {
           </div>
         </td>
 
-        <!-- Per-player impact and rotation thresholds -->
-        <td class="col-threshold" data-label="Seuils d'alerte">
-          <div class="threshold-input-wrapper">
-            <input 
-              type="number" 
-              class="row-threshold-input form-input-sm" 
-              data-device-id="${escapeHtml(mac)}" 
-              value="${threshold}" 
-              min="0.1" 
-              max="${CONFIG.MAX_IMPACT_THRESHOLD}" 
-              step="0.1" 
-              title="Seuil de commotion personnalisé"
-            />
-            <span class="threshold-unit">g</span>
-          </div>
-          ${this.getThresholdBarHtml('impact', mag, threshold, hasAlert)}
-          <div class="threshold-input-wrapper">
-            <input
-              type="number"
-              class="row-threshold-input row-rotation-threshold-input form-input-sm"
-              data-device-id="${escapeHtml(mac)}"
-              value="${rotationThreshold}"
-              min="1"
-              max="${CONFIG.MAX_ROTATION_THRESHOLD}"
-              step="1"
-              title="Seuil de vitesse de rotation personnalisé"
-            />
-            <span class="threshold-unit">°/s</span>
-          </div>
-          ${this.getThresholdBarHtml('rotation', rotation, rotationThreshold, Boolean(d.rotation_alert))}
-        </td>
-
         <!-- Battery -->
         <td class="col-battery" data-label="Batterie">
           <div class="battery-cell" data-charging="${battery.charging}" title="${battery.charging ? 'Batterie en charge' : d.battery_voltage !== undefined ? `${fmt(d.battery_voltage, 2)} V` : ''}">
@@ -478,7 +383,6 @@ export class DashboardView {
     const link = getDeviceLinkState(d);
     const hasAlert = Boolean(d.impact_alert);
     const threshold = getDeviceThreshold(d);
-    const rotationThreshold = getDeviceRotationThreshold(d);
     const mag = d.aX !== undefined ? calcAccelMagnitude(d.aX, d.aY, d.aZ) : null;
     const temp = d.temp;
     const battery = getBatteryStatus(d.battery_percentage, d.battery_charging);
@@ -576,22 +480,6 @@ export class DashboardView {
       }
     }
 
-    this.updateThresholdBar(row, 'impact', mag, threshold, hasAlert);
-    this.updateThresholdBar(row, 'rotation', calcGyroMagnitude(d.gX, d.gY, d.gZ), rotationThreshold, Boolean(d.rotation_alert));
-
-    // Threshold input (do not clobber if user is actively typing)
-    const thresholdInput = row.querySelector('.row-threshold-input');
-    if (thresholdInput && document.activeElement !== thresholdInput) {
-      if (Number(thresholdInput.value) !== threshold) {
-        thresholdInput.value = threshold;
-      }
-    }
-    const rotationThresholdInput = row.querySelector('.row-rotation-threshold-input');
-    if (rotationThresholdInput && document.activeElement !== rotationThresholdInput) {
-      if (Number(rotationThresholdInput.value) !== rotationThreshold) {
-        rotationThresholdInput.value = rotationThreshold;
-      }
-    }
 
     // Battery
     const batteryText = row.querySelector('.col-battery .battery-text');
