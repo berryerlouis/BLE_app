@@ -51,6 +51,10 @@ export class PlayerView {
     // Threshold & Impact elements
     this.thresholdInput = document.getElementById('threshold-input');
     this.rotationThresholdInput = document.getElementById('rotation-threshold-input');
+    this.thresholdRange = document.getElementById('threshold-range');
+    this.rotationThresholdRange = document.getElementById('rotation-threshold-range');
+    // Slider position while dragging, before it is saved.
+    this.thresholdDraft = { impact: null, rotation: null };
     this.impactGaugeValue = document.getElementById('impact-gauge-value');
     this.rotationGaugeValue = document.getElementById('rotation-gauge-value');
     this.impactGaugeBar = document.getElementById('impact-gauge-bar');
@@ -148,6 +152,22 @@ export class PlayerView {
         if (e.key === 'Enter') input.blur();
       });
     }
+
+    for (const [range, input, isRotation] of [
+      [this.thresholdRange, this.thresholdInput, false],
+      [this.rotationThresholdRange, this.rotationThresholdInput, true],
+    ]) {
+      const kind = isRotation ? 'rotation' : 'impact';
+      range?.addEventListener('input', () => {
+        this.thresholdDraft[kind] = Number(range.value);
+        if (input) input.value = range.value;
+        this.renderThresholdGauges();
+      });
+      range?.addEventListener('change', () => {
+        if (input) input.value = range.value;
+        this.handleThresholdChange(isRotation);
+      });
+    }
   }
 
   async handleThresholdChange(isRotation) {
@@ -159,29 +179,38 @@ export class PlayerView {
     const value = Number(input.value);
     const max = isRotation ? CONFIG.MAX_ROTATION_THRESHOLD : CONFIG.MAX_IMPACT_THRESHOLD;
     const previous = isRotation ? getDeviceRotationThreshold(dev) : getDeviceThreshold(dev);
+    const kind = isRotation ? 'rotation' : 'impact';
+    const range = isRotation ? this.rotationThresholdRange : this.thresholdRange;
 
     if (input.value === '' || !Number.isFinite(value) || value <= 0 || value > max) {
       input.value = previous;
+      this.thresholdDraft[kind] = null;
+      this.renderThresholdGauges();
       this.showThresholdError(`Le seuil doit être compris entre 0 et ${max} ${isRotation ? '°/s' : 'g'}`);
       return;
     }
 
     input.disabled = true;
+    if (range) range.disabled = true;
     try {
       if (isRotation) await api.updateDeviceRotationThreshold(deviceId, value);
       else await api.updateDeviceThreshold(deviceId, value);
       this.showThresholdError('');
       if (isRotation) dev.rotation_threshold = value;
       else dev.impact_threshold = value;
+      this.thresholdDraft[kind] = null;
       this.renderImpactState();
       this.renderThresholdGauges();
       // Live charts follow the websocket broadcast; archived ones must be redrawn here.
       if (state.isViewingHistorical()) this.rebuildCharts();
     } catch (err) {
       input.value = previous;
+      this.thresholdDraft[kind] = null;
+      this.renderThresholdGauges();
       this.showThresholdError(err.message);
     } finally {
       input.disabled = false;
+      if (range) range.disabled = false;
     }
   }
 
@@ -196,8 +225,8 @@ export class PlayerView {
     if (!dev) return;
 
     const isHistorical = state.isViewingHistorical();
-    const threshold = getDeviceThreshold(dev);
-    const rotationThreshold = getDeviceRotationThreshold(dev);
+    const threshold = this.thresholdDraft.impact ?? getDeviceThreshold(dev);
+    const rotationThreshold = this.thresholdDraft.rotation ?? getDeviceRotationThreshold(dev);
 
     let accel = dev.aX !== undefined ? calcAccelMagnitude(dev.aX, dev.aY, dev.aZ) : 0;
     let rotation = calcGyroMagnitude(dev.gX, dev.gY, dev.gZ);
@@ -222,21 +251,23 @@ export class PlayerView {
       }
     }
 
-    const render = (valueEl, barEl, input, value, limit, digits, latched) => {
+    const render = (valueEl, barEl, input, range, value, limit, digits, latched) => {
       if (valueEl) valueEl.textContent = fmt(value, digits);
       if (barEl) {
-        const gauge = getThresholdGauge(value, limit, latched);
-        barEl.className = `threshold-bar threshold-bar-lg threshold-${gauge.level}`;
+        // The bar spans the slider's scale; the slider thumb marks the threshold.
+        const scale = Number(range?.max) || limit;
+        barEl.className = `threshold-bar threshold-bar-lg threshold-${getThresholdGauge(value, limit, latched).level}`;
         const fill = barEl.firstElementChild;
-        if (fill) fill.style.width = `${gauge.percent}%`;
+        if (fill) fill.style.width = `${Math.max(0, Math.min(1, value / scale)) * 100}%`;
       }
+      if (range && Number(range.value) !== limit) range.value = limit;
       // Don't overwrite a value being typed.
       if (input && document.activeElement !== input && Number(input.value) !== limit) {
         input.value = limit;
       }
     };
-    render(this.impactGaugeValue, this.impactGaugeBar, this.thresholdInput, accel, threshold, 2, accelLatched);
-    render(this.rotationGaugeValue, this.rotationGaugeBar, this.rotationThresholdInput, rotation, rotationThreshold, 0, rotationLatched);
+    render(this.impactGaugeValue, this.impactGaugeBar, this.thresholdInput, this.thresholdRange, accel, threshold, 2, accelLatched);
+    render(this.rotationGaugeValue, this.rotationGaugeBar, this.rotationThresholdInput, this.rotationThresholdRange, rotation, rotationThreshold, 0, rotationLatched);
   }
 
   async handleResetImpact() {

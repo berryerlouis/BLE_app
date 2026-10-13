@@ -16,7 +16,7 @@
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   
   <!-- Styles -->
-  <link rel="stylesheet" href="static/css/main.css?v=20261013-threshold-bars" />
+  <link rel="stylesheet" href="static/css/main.css?v=20261013-threshold-slider" />
 
   <!-- External Chart & Icon Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
@@ -303,7 +303,10 @@
                     <span class="threshold-unit">g</span>
                   </span>
                 </div>
-                <div class="threshold-bar threshold-bar-lg threshold-normal" id="impact-gauge-bar"><span class="threshold-bar-fill"></span></div>
+                <div class="threshold-slider">
+                  <div class="threshold-bar threshold-bar-lg threshold-normal" id="impact-gauge-bar"><span class="threshold-bar-fill"></span></div>
+                  <input id="threshold-range" class="threshold-range" type="range" min="0.1" max="50" step="0.1" title="Glisser pour modifier le seuil de commotion" aria-label="Seuil de commotion (g)" />
+                </div>
               </div>
               <div class="threshold-gauge">
                 <div class="threshold-gauge-head">
@@ -315,7 +318,10 @@
                     <span class="threshold-unit">°/s</span>
                   </span>
                 </div>
-                <div class="threshold-bar threshold-bar-lg threshold-normal" id="rotation-gauge-bar"><span class="threshold-bar-fill"></span></div>
+                <div class="threshold-slider">
+                  <div class="threshold-bar threshold-bar-lg threshold-normal" id="rotation-gauge-bar"><span class="threshold-bar-fill"></span></div>
+                  <input id="rotation-threshold-range" class="threshold-range" type="range" min="1" max="2000" step="1" title="Glisser pour modifier le seuil de rotation" aria-label="Seuil de rotation (°/s)" />
+                </div>
               </div>
             </div>
             <button id="impact-reset-btn" class="btn btn-secondary btn-sm" type="button">
@@ -684,7 +690,7 @@
   </div>
 
   <!-- Main JavaScript App (ES Modules) -->
-  <script type="module" src="static/js/app.js?v=20261013-threshold-bars"></script>
+  <script type="module" src="static/js/app.js?v=20261013-threshold-slider"></script>
 </body>
 </html>
 
