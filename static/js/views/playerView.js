@@ -1,11 +1,14 @@
 /**
  * Player Detail View (Second Page)
  */
+import { CONFIG } from '../config.js?v=20260929-rotation-800';
 import { api } from '../api.js?v=20260929-rotation-threshold';
 import { state } from '../state.js?v=20260929-live-rssi';
 import {
   fmt,
   calcAccelMagnitude,
+  calcGyroMagnitude,
+  getThresholdGauge,
   getDeviceDisplayName,
   getDeviceThreshold,
   getDeviceRotationThreshold,
@@ -16,7 +19,7 @@ import {
   escapeHtml,
   progressBar,
   sessionLoader,
-} from '../utils.js?v=20260929-sync-progress';
+} from '../utils.js?v=20261013-threshold-bars';
 
 export class PlayerView {
   constructor(chartManager, onBack, onEditLabel, onSelectSession) {
@@ -46,8 +49,12 @@ export class PlayerView {
     this.returnLiveBtn = document.getElementById('return-live-btn');
 
     // Threshold & Impact elements
-    this.thresholdValue = document.getElementById('threshold-value');
-    this.rotationThresholdValue = document.getElementById('rotation-threshold-value');
+    this.thresholdInput = document.getElementById('threshold-input');
+    this.rotationThresholdInput = document.getElementById('rotation-threshold-input');
+    this.impactGaugeValue = document.getElementById('impact-gauge-value');
+    this.rotationGaugeValue = document.getElementById('rotation-gauge-value');
+    this.impactGaugeBar = document.getElementById('impact-gauge-bar');
+    this.rotationGaugeBar = document.getElementById('rotation-gauge-bar');
     this.impactResetBtn = document.getElementById('impact-reset-btn');
     this.impactBanner = document.getElementById('impact-banner');
     this.impactBannerValue = document.getElementById('impact-banner-value');
@@ -133,6 +140,103 @@ export class PlayerView {
     });
 
     this.impactResetBtn?.addEventListener('click', () => this.handleResetImpact());
+
+    this.thresholdInput?.addEventListener('change', () => this.handleThresholdChange(false));
+    this.rotationThresholdInput?.addEventListener('change', () => this.handleThresholdChange(true));
+    for (const input of [this.thresholdInput, this.rotationThresholdInput]) {
+      input?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') input.blur();
+      });
+    }
+  }
+
+  async handleThresholdChange(isRotation) {
+    const deviceId = state.currentDeviceId;
+    const input = isRotation ? this.rotationThresholdInput : this.thresholdInput;
+    const dev = state.getCurrentDevice();
+    if (!deviceId || !input || !dev) return;
+
+    const value = Number(input.value);
+    const max = isRotation ? CONFIG.MAX_ROTATION_THRESHOLD : CONFIG.MAX_IMPACT_THRESHOLD;
+    const previous = isRotation ? getDeviceRotationThreshold(dev) : getDeviceThreshold(dev);
+
+    if (input.value === '' || !Number.isFinite(value) || value <= 0 || value > max) {
+      input.value = previous;
+      this.showThresholdError(`Le seuil doit être compris entre 0 et ${max} ${isRotation ? '°/s' : 'g'}`);
+      return;
+    }
+
+    input.disabled = true;
+    try {
+      if (isRotation) await api.updateDeviceRotationThreshold(deviceId, value);
+      else await api.updateDeviceThreshold(deviceId, value);
+      this.showThresholdError('');
+      if (isRotation) dev.rotation_threshold = value;
+      else dev.impact_threshold = value;
+      this.renderImpactState();
+      this.renderThresholdGauges();
+      // Live charts follow the websocket broadcast; archived ones must be redrawn here.
+      if (state.isViewingHistorical()) this.rebuildCharts();
+    } catch (err) {
+      input.value = previous;
+      this.showThresholdError(err.message);
+    } finally {
+      input.disabled = false;
+    }
+  }
+
+  showThresholdError(message) {
+    if (!this.thresholdError) return;
+    this.thresholdError.textContent = message;
+    this.thresholdError.classList.toggle('hidden', !message);
+  }
+
+  renderThresholdGauges() {
+    const dev = state.getCurrentDevice();
+    if (!dev) return;
+
+    const isHistorical = state.isViewingHistorical();
+    const threshold = getDeviceThreshold(dev);
+    const rotationThreshold = getDeviceRotationThreshold(dev);
+
+    let accel = dev.aX !== undefined ? calcAccelMagnitude(dev.aX, dev.aY, dev.aZ) : 0;
+    let rotation = calcGyroMagnitude(dev.gX, dev.gY, dev.gZ);
+    let accelLatched = Boolean(dev.impact_alert);
+    let rotationLatched = Boolean(dev.rotation_alert);
+
+    if (isHistorical) {
+      // Archived match: show the peak reached during the session.
+      accel = 0;
+      rotation = 0;
+      accelLatched = false;
+      rotationLatched = false;
+      for (const item of state.currentDeviceLog) {
+        if (item.type === 'imu') {
+          accel = Math.max(accel, calcAccelMagnitude(item.aX, item.aY, item.aZ));
+          rotation = Math.max(rotation, calcGyroMagnitude(item.gX, item.gY, item.gZ));
+        } else if (item.type === 'impact') {
+          accel = Math.max(accel, Number(item.impact_value) || 0);
+        } else if (item.type === 'rotation') {
+          rotation = Math.max(rotation, Number(item.rotation_value) || 0);
+        }
+      }
+    }
+
+    const render = (valueEl, barEl, input, value, limit, digits, latched) => {
+      if (valueEl) valueEl.textContent = fmt(value, digits);
+      if (barEl) {
+        const gauge = getThresholdGauge(value, limit, latched);
+        barEl.className = `threshold-bar threshold-bar-lg threshold-${gauge.level}`;
+        const fill = barEl.firstElementChild;
+        if (fill) fill.style.width = `${gauge.percent}%`;
+      }
+      // Don't overwrite a value being typed.
+      if (input && document.activeElement !== input && Number(input.value) !== limit) {
+        input.value = limit;
+      }
+    };
+    render(this.impactGaugeValue, this.impactGaugeBar, this.thresholdInput, accel, threshold, 2, accelLatched);
+    render(this.rotationGaugeValue, this.rotationGaugeBar, this.rotationThresholdInput, rotation, rotationThreshold, 0, rotationLatched);
   }
 
   async handleResetImpact() {
@@ -284,6 +388,7 @@ export class PlayerView {
     this.renderHeader();
     this.renderKpis();
     this.renderImpactState();
+    this.renderThresholdGauges();
     this.rebuildCharts();
   }
 
@@ -325,13 +430,6 @@ export class PlayerView {
     }
     if (this.rssiIcon) this.rssiIcon.style.color = rssi.color;
     if (this.rssiLabel) this.rssiLabel.textContent = rssi.text;
-
-    if (this.thresholdValue) {
-      this.thresholdValue.textContent = `${fmt(getDeviceThreshold(dev), 1)}`;
-    }
-    if (this.rotationThresholdValue) {
-      this.rotationThresholdValue.textContent = `${fmt(getDeviceRotationThreshold(dev), 0)}`;
-    }
   }
 
   renderKpis() {
@@ -471,6 +569,7 @@ export class PlayerView {
     }
     this.renderKpis();
     this.renderImpactState();
+    this.renderThresholdGauges();
 
     if (!state.realtimeEnabled) return;
 

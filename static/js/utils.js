@@ -47,6 +47,13 @@ export function getDeviceRotationThreshold(device) {
     : CONFIG.DEFAULT_ROTATION_THRESHOLD;
 }
 
+/** Fill percentage (0-100) and severity of a reading relative to its alert threshold. */
+export function getThresholdGauge(value, threshold, latched = false) {
+  const ratio = threshold > 0 && Number.isFinite(value) ? value / threshold : 0;
+  const level = latched || ratio >= 1 ? 'alert' : ratio >= 0.7 ? 'warning' : 'normal';
+  return { percent: Math.max(0, Math.min(1, ratio)) * 100, level };
+}
+
 export function formatTimestamp(timestampSec) {
   if (!timestampSec) return '--';
   const d = new Date(timestampSec * 1000);

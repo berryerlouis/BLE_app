@@ -1238,6 +1238,61 @@ tr.device-row.disconnected-row {
   font-family: "JetBrains Mono", monospace;
 }
 
+/* Reading vs. alert threshold progress bars */
+.threshold-bar {
+  height: 5px;
+  margin: 2px 0 6px;
+  overflow: hidden;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+}
+
+.threshold-bar-lg {
+  height: 8px;
+  margin: 6px 0 0;
+}
+
+.threshold-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-success);
+  transition: width 0.15s ease, background-color 0.15s ease;
+}
+
+.threshold-warning .threshold-bar-fill { background: var(--color-warning); }
+.threshold-alert .threshold-bar-fill {
+  background: var(--color-danger);
+  box-shadow: 0 0 8px var(--color-danger-glow);
+}
+
+.threshold-gauges {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 260px;
+}
+
+.threshold-gauge-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.threshold-gauge-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.threshold-gauge-reading {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
 /* Concussion Alert Banner */
 .impact-alert-banner {
   display: flex;

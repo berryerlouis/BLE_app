@@ -16,7 +16,7 @@
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   
   <!-- Styles -->
-  <link rel="stylesheet" href="static/css/main.css?v=20260929-compact-list" />
+  <link rel="stylesheet" href="static/css/main.css?v=20261013-threshold-bars" />
 
   <!-- External Chart & Icon Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
@@ -292,11 +292,31 @@
 
           <!-- Concussion Threshold Highlight Card -->
           <div class="threshold-action-card">
-            <div class="threshold-card-info">
-              <span class="threshold-card-title">Seuil de commotion</span>
-              <span class="threshold-card-val"><strong id="threshold-value">--</strong> g</span>
-              <span class="threshold-card-title">Seuil rotation</span>
-              <span class="threshold-card-val"><strong id="rotation-threshold-value">--</strong> °/s</span>
+            <div class="threshold-gauges">
+              <div class="threshold-gauge">
+                <div class="threshold-gauge-head">
+                  <span class="threshold-card-title">Seuil de commotion</span>
+                  <span class="threshold-gauge-edit">
+                    <span class="threshold-gauge-reading font-mono" id="impact-gauge-value">--</span>
+                    <span class="text-dim">/</span>
+                    <input id="threshold-input" class="row-threshold-input" type="number" min="0.1" max="200" step="0.1" title="Modifier le seuil de commotion" aria-label="Seuil de commotion (g)" />
+                    <span class="threshold-unit">g</span>
+                  </span>
+                </div>
+                <div class="threshold-bar threshold-bar-lg threshold-normal" id="impact-gauge-bar"><span class="threshold-bar-fill"></span></div>
+              </div>
+              <div class="threshold-gauge">
+                <div class="threshold-gauge-head">
+                  <span class="threshold-card-title">Seuil rotation</span>
+                  <span class="threshold-gauge-edit">
+                    <span class="threshold-gauge-reading font-mono" id="rotation-gauge-value">--</span>
+                    <span class="text-dim">/</span>
+                    <input id="rotation-threshold-input" class="row-threshold-input" type="number" min="1" max="2000" step="1" title="Modifier le seuil de rotation" aria-label="Seuil de rotation (°/s)" />
+                    <span class="threshold-unit">°/s</span>
+                  </span>
+                </div>
+                <div class="threshold-bar threshold-bar-lg threshold-normal" id="rotation-gauge-bar"><span class="threshold-bar-fill"></span></div>
+              </div>
             </div>
             <button id="impact-reset-btn" class="btn btn-secondary btn-sm" type="button">
               <i data-lucide="rotate-ccw"></i>
@@ -664,7 +684,7 @@
   </div>
 
   <!-- Main JavaScript App (ES Modules) -->
-  <script type="module" src="static/js/app.js?v=20260929-sync-progress"></script>
+  <script type="module" src="static/js/app.js?v=20261013-threshold-bars"></script>
 </body>
 </html>
 

@@ -7,6 +7,8 @@ import { state } from '../state.js?v=20260929-live-rssi';
 import {
   fmt,
   calcAccelMagnitude,
+  calcGyroMagnitude,
+  getThresholdGauge,
   getDeviceDisplayName,
   getDeviceThreshold,
   getDeviceRotationThreshold,
@@ -17,7 +19,7 @@ import {
   getDeviceLinkState,
   escapeHtml,
   progressBar,
-} from '../utils.js?v=20260929-sync-progress';
+} from '../utils.js?v=20261013-threshold-bars';
 
 export class DashboardView {
   constructor(onOpenPlayer, onEditLabel, onNewSession, onEndSession, onSelectSession, onRenameSession, onDeleteSession, onFlashFirmware) {
@@ -303,6 +305,21 @@ export class DashboardView {
     `;
   }
 
+  getThresholdBarHtml(kind, value, threshold, latched) {
+    const gauge = getThresholdGauge(value, threshold, latched);
+    return `<div class="threshold-bar threshold-${gauge.level}" data-kind="${kind}"><span class="threshold-bar-fill" style="width: ${gauge.percent}%"></span></div>`;
+  }
+
+  updateThresholdBar(row, kind, value, threshold, latched) {
+    const bar = row.querySelector(`.threshold-bar[data-kind="${kind}"]`);
+    if (!bar) return;
+    const gauge = getThresholdGauge(value, threshold, latched);
+    const className = `threshold-bar threshold-${gauge.level}`;
+    if (bar.className !== className) bar.className = className;
+    const fill = bar.firstElementChild;
+    if (fill) fill.style.width = `${gauge.percent}%`;
+  }
+
   getSyncProgressHtml(device) {
     const isSyncing = device.state === 'backfilling';
     const progress = Number(device.sync_progress);
@@ -343,6 +360,7 @@ export class DashboardView {
     const threshold = getDeviceThreshold(d);
     const rotationThreshold = getDeviceRotationThreshold(d);
     const mag = d.aX !== undefined ? calcAccelMagnitude(d.aX, d.aY, d.aZ) : null;
+    const rotation = calcGyroMagnitude(d.gX, d.gY, d.gZ);
     const temp = d.temp;
     const battery = getBatteryStatus(d.battery_percentage, d.battery_charging);
     const rssi = getRssiStatus(d.rssi);
@@ -415,6 +433,7 @@ export class DashboardView {
             />
             <span class="threshold-unit">g</span>
           </div>
+          ${this.getThresholdBarHtml('impact', mag, threshold, hasAlert)}
           <div class="threshold-input-wrapper">
             <input
               type="number"
@@ -428,6 +447,7 @@ export class DashboardView {
             />
             <span class="threshold-unit">°/s</span>
           </div>
+          ${this.getThresholdBarHtml('rotation', rotation, rotationThreshold, Boolean(d.rotation_alert))}
         </td>
 
         <!-- Battery -->
@@ -555,6 +575,9 @@ export class DashboardView {
         tempVal.textContent = formattedTemp;
       }
     }
+
+    this.updateThresholdBar(row, 'impact', mag, threshold, hasAlert);
+    this.updateThresholdBar(row, 'rotation', calcGyroMagnitude(d.gX, d.gY, d.gZ), rotationThreshold, Boolean(d.rotation_alert));
 
     // Threshold input (do not clobber if user is actively typing)
     const thresholdInput = row.querySelector('.row-threshold-input');

@@ -3,7 +3,21 @@
  * High-performance RAF rendering & Full Session Zoom/Pan
  */
 import { CONFIG } from './config.js?v=20260929-rotation-800';
-import { calcAccelMagnitude, calcGyroMagnitude } from './utils.js?v=20260929-sync-progress';
+import { calcAccelMagnitude, calcGyroMagnitude } from './utils.js?v=20261013-threshold-bars';
+
+// Marks local maxima at or above the threshold dataset so impacts stay visible at any zoom level.
+function peakRadius(thresholdDatasetIndex) {
+  return (ctx) => {
+    const data = ctx.dataset.data;
+    const i = ctx.dataIndex;
+    const v = data[i];
+    const limit = ctx.chart.data.datasets[thresholdDatasetIndex]?.data[i];
+    if (!Number.isFinite(v) || !Number.isFinite(limit) || v < limit) return 0;
+    const prev = i > 0 ? data[i - 1] : -Infinity;
+    const next = i < data.length - 1 ? data[i + 1] : -Infinity;
+    return v > prev && v >= next ? 5 : 0;
+  };
+}
 
 export class ChartManager {
   constructor() {
@@ -46,7 +60,11 @@ export class ChartManager {
           backgroundColor: cfg.bgColor || 'transparent',
           borderWidth: cfg.borderWidth || 2,
           borderDash: cfg.borderDash || [],
-          pointRadius: 0,
+          pointRadius: cfg.peakThresholdIndex === undefined ? 0 : peakRadius(cfg.peakThresholdIndex),
+          pointStyle: 'circle',
+          pointBackgroundColor: cfg.color,
+          pointBorderColor: '#ef4444',
+          pointBorderWidth: 2,
           pointHoverRadius: 4,
           tension: 0.1,
           spanGaps: true,
@@ -147,17 +165,17 @@ export class ChartManager {
     if (this.charts) return this.charts;
 
     const accelDatasets = [
-      { label: '|a| (pic 50 ms)', color: '#ffffff', borderWidth: 2.2 },
+      { label: '|a| (pic 50 ms)', color: '#ffffff', borderWidth: 2.2, peakThresholdIndex: 4 },
       { label: 'aX', color: CONFIG.COLORS.chartAx, hidden: true, borderWidth: 1.5 },
       { label: 'aY', color: CONFIG.COLORS.chartAy, hidden: true, borderWidth: 1.5 },
       { label: 'aZ', color: CONFIG.COLORS.chartAz, hidden: true, borderWidth: 1.5 },
       { label: 'Seuil commotion', color: CONFIG.COLORS.chartThreshold, borderWidth: 1.8, borderDash: [6, 4] },
-      { label: '|ω|', color: '#f59e0b', borderWidth: 2.2, yAxisID: 'yRotation' },
+      { label: '|ω|', color: '#f59e0b', borderWidth: 2.2, yAxisID: 'yRotation', peakThresholdIndex: 6 },
       { label: 'Seuil rotation', color: '#f59e0b', borderWidth: 1.8, borderDash: [6, 4], yAxisID: 'yRotation' },
     ];
 
     const gyroDatasets = [
-      { label: '|ω|', color: '#ffffff', borderWidth: 2.2 },
+      { label: '|ω|', color: '#ffffff', borderWidth: 2.2, peakThresholdIndex: 4 },
       { label: 'gX', color: CONFIG.COLORS.chartGyroX, borderWidth: 1.8 },
       { label: 'gY', color: CONFIG.COLORS.chartGyroY, borderWidth: 1.8 },
       { label: 'gZ', color: CONFIG.COLORS.chartGyroZ, borderWidth: 1.8 },
@@ -203,12 +221,32 @@ export class ChartManager {
     // Logs are stored in arrival order, not recording order: a backfilled (historical)
     // sample replayed after a reconnect carries an older timestamp than the live samples
     // it's interleaved with, so the timeline must be re-sorted before charting it.
-    // Decimate very large sessions so charts stay fast to draw: keep every Nth point
-    // rather than dumping tens of thousands of points into Chart.js.
-    const imuLogs = logs.filter((msg) => msg.type === 'imu').sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
-    const step = Math.max(1, Math.ceil(imuLogs.length / CONFIG.MAX_SESSION_RENDER_POINTS));
+    // Decimate very large sessions so charts stay fast to draw. Each bucket keeps its
+    // accel and rotation maxima (not just the first sample) so peaks are never dropped.
+    const allImuLogs = logs.filter((msg) => msg.type === 'imu').sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
+    const step = Math.max(1, Math.ceil(allImuLogs.length / CONFIG.MAX_SESSION_RENDER_POINTS));
+    const imuLogs = [];
+    if (step === 1) {
+      imuLogs.push(...allImuLogs);
+    } else {
+      for (let start = 0; start < allImuLogs.length; start += step) {
+        const end = Math.min(start + step, allImuLogs.length);
+        let maxA = start;
+        let maxG = start;
+        let bestA = -Infinity;
+        let bestG = -Infinity;
+        for (let j = start; j < end; j++) {
+          const m = allImuLogs[j];
+          const a = calcAccelMagnitude(m.aX, m.aY, m.aZ);
+          const g = calcGyroMagnitude(m.gX, m.gY, m.gZ);
+          if (a > bestA) { bestA = a; maxA = j; }
+          if (g > bestG) { bestG = g; maxG = j; }
+        }
+        for (const idx of new Set([maxA, maxG].sort((x, y) => x - y))) imuLogs.push(allImuLogs[idx]);
+      }
+    }
 
-    for (let i = 0; i < imuLogs.length; i += step) {
+    for (let i = 0; i < imuLogs.length; i++) {
       const msg = imuLogs[i];
       const t = new Date((msg.timestamp ?? Date.now() / 1000) * 1000).toLocaleTimeString([], {
         hour: '2-digit',
