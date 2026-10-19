@@ -8,6 +8,10 @@ import io
 import json
 import logging
 import math
+import os
+import platform
+import shutil
+import subprocess
 import time
 import zipfile
 from collections import deque
@@ -92,6 +96,10 @@ def create_app(
     # is deployed and no longer reachable over SSH.
     app.router.add_get("/api/logs/export", export_logs_handler)
 
+    # Raspberry Pi host monitoring and controlled power-off.
+    app.router.add_get("/api/system/stats", system_stats_handler)
+    app.router.add_post("/api/system/shutdown", system_shutdown_handler)
+
     app.router.add_static("/static/", STATIC_DIR, show_index=False, name="static")
 
     app.on_startup.append(_load_persisted_state)
@@ -144,6 +152,93 @@ async def export_logs_handler(request: web.Request) -> web.StreamResponse:
         content_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+def _read_meminfo() -> dict[str, int]:
+    """Return Linux memory metrics in bytes from /proc/meminfo when available."""
+    values: dict[str, int] = {}
+    try:
+        for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines():
+            key, value = line.split(":", maxsplit=1)
+            values[key] = int(value.strip().split()[0]) * 1024
+    except (FileNotFoundError, ValueError, IndexError):
+        pass
+    return values
+
+
+def _system_stats() -> dict:
+    memory = _read_meminfo()
+    memory_total = memory.get("MemTotal")
+    memory_available = memory.get("MemAvailable")
+    if memory_total is not None and memory_available is not None:
+        memory_used = memory_total - memory_available
+    else:
+        memory_used = None
+
+    disk = shutil.disk_usage("/")
+    cpu_cores = os.cpu_count() or 1
+    try:
+        load_1m = os.getloadavg()[0]
+    except (AttributeError, OSError):
+        load_1m = None
+
+    uptime_seconds = None
+    try:
+        uptime_seconds = float(Path("/proc/uptime").read_text(encoding="utf-8").split()[0])
+    except (FileNotFoundError, ValueError, IndexError):
+        pass
+
+    return {
+        "hostname": platform.node(),
+        "platform": platform.platform(),
+        "cpu_cores": cpu_cores,
+        "cpu_load_1m": load_1m,
+        "cpu_load_percent": round(load_1m / cpu_cores * 100, 1) if load_1m is not None else None,
+        "memory_total_bytes": memory_total,
+        "memory_used_bytes": memory_used,
+        "memory_available_bytes": memory_available,
+        "disk_total_bytes": disk.total,
+        "disk_used_bytes": disk.used,
+        "disk_free_bytes": disk.free,
+        "uptime_seconds": uptime_seconds,
+    }
+
+
+async def system_stats_handler(_request: web.Request) -> web.Response:
+    return web.json_response(_system_stats())
+
+
+async def system_shutdown_handler(request: web.Request) -> web.Response:
+    """Schedule a host shutdown after the JSON response reaches the browser.
+
+    The service runs as ``pi``; installation grants only this exact command through sudoers.
+    """
+    if platform.system() != "Linux":
+        return web.json_response({"error": "L'arrêt est disponible uniquement sur le Raspberry Pi"}, status=501)
+    shutdown_binary = "/sbin/shutdown" if Path("/sbin/shutdown").is_file() else shutil.which("shutdown")
+    if not shutdown_binary:
+        return web.json_response({"error": "Commande d'arrêt introuvable"}, status=500)
+
+    async def shutdown_host() -> None:
+        # Keep aiohttp alive briefly so its JSON acknowledgement reaches the browser first.
+        await asyncio.sleep(0.5)
+        try:
+            result = await asyncio.to_thread(
+                subprocess.run,
+                ["sudo", "-n", shutdown_binary, "-h", "now"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if result.returncode != 0:
+                log.error("Raspberry Pi shutdown refused: %s", result.stderr.strip())
+        except (OSError, subprocess.TimeoutExpired):
+            log.exception("Unable to request Raspberry Pi shutdown")
+
+    log.warning("Raspberry Pi shutdown requested from %s", request.remote)
+    asyncio.create_task(shutdown_host())
+    return web.json_response({"shutting_down": True})
 
 
 async def _load_persisted_state(app: web.Application) -> None:

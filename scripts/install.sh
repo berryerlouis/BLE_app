@@ -53,11 +53,16 @@ echo "==> Configuring Wi-Fi access point..."
 
 echo "==> Installing systemd service..."
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
+SUDOERS_FILE="/etc/sudoers.d/${SERVICE_NAME}-shutdown"
 chmod +x "$APP_DIR/scripts/enable_bluetooth_adapters.sh"
 sed \
   -e "s#/home/pi/BLE_app#${APP_DIR}#g" \
   -e "s#User=pi#User=${SUDO_USER:-pi}#g" \
   "$APP_DIR/scripts/ble-central.service" > "$SERVICE_FILE"
+sed "s#^pi ALL=#${SUDO_USER:-pi} ALL=#" \
+  "$APP_DIR/scripts/ble-central-shutdown.sudoers" > "$SUDOERS_FILE"
+chmod 0440 "$SUDOERS_FILE"
+visudo -cf "$SUDOERS_FILE"
 
 systemctl daemon-reload
 systemctl enable "$SERVICE_NAME"

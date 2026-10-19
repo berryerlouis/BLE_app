@@ -43,8 +43,26 @@ class App {
     this.footerVersion = document.getElementById('footer-version');
     this.footerAuthor = document.getElementById('footer-author');
     this.updateStatus = document.getElementById('update-status');
+    this.systemStatsBtn = document.getElementById('system-stats-btn');
+    this.systemStatsPanel = document.getElementById('system-stats-panel');
+    this.systemHostname = document.getElementById('system-hostname');
+    this.systemCpu = document.getElementById('system-cpu');
+    this.systemMemory = document.getElementById('system-memory');
+    this.systemDisk = document.getElementById('system-disk');
+    this.systemUptime = document.getElementById('system-uptime');
+    this.systemStatsError = document.getElementById('system-stats-error');
+    this.systemShutdownBtn = document.getElementById('system-shutdown-btn');
 
     this.init();
+  }
+
+  initSystemControls() {
+    this.systemStatsBtn?.addEventListener('click', async () => {
+      const isHidden = this.systemStatsPanel?.classList.contains('hidden');
+      this.systemStatsPanel?.classList.toggle('hidden', !isHidden);
+      if (isHidden) await this.refreshSystemStats();
+    });
+    this.systemShutdownBtn?.addEventListener('click', () => this.shutdownSystem());
   }
 
   async init() {
@@ -58,6 +76,7 @@ class App {
 
     // 2. Subscribe to state changes
     state.subscribe((event, payload) => this.handleStateEvent(event, payload));
+    this.initSystemControls();
 
     // 3. Load initial data
     await this.loadInitialData();
@@ -76,6 +95,9 @@ class App {
     // USB-connected satellites do not advertise their serial presence over the WebSocket.
     await this.refreshUsbSatelliteStatus();
     setInterval(() => this.refreshUsbSatelliteStatus(), 5000);
+    setInterval(() => {
+      if (!this.systemStatsPanel?.classList.contains('hidden')) this.refreshSystemStats();
+    }, 5000);
 
     // 6. Show initial dashboard view
     this.showDashboardView();
@@ -106,6 +128,68 @@ class App {
     } catch (err) {
       console.warn('Failed to refresh USB satellite status:', err);
       this.usbSatelliteStatus.classList.add('hidden');
+    }
+  }
+
+  formatBytes(bytes) {
+    if (!Number.isFinite(bytes)) return '--';
+    const units = ['o', 'Ko', 'Mo', 'Go', 'To'];
+    let value = bytes;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+      value /= 1024;
+      unit += 1;
+    }
+    return `${value.toFixed(value >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
+  }
+
+  formatUptime(seconds) {
+    if (!Number.isFinite(seconds)) return '--';
+    const totalMinutes = Math.floor(seconds / 60);
+    const days = Math.floor(totalMinutes / 1440);
+    const hours = Math.floor((totalMinutes % 1440) / 60);
+    const minutes = totalMinutes % 60;
+    return days ? `${days} j ${hours} h` : `${hours} h ${minutes} min`;
+  }
+
+  async refreshSystemStats() {
+    try {
+      const stats = await api.fetchSystemStats();
+      if (this.systemHostname) this.systemHostname.textContent = stats.hostname || '--';
+      if (this.systemCpu) {
+        this.systemCpu.textContent = stats.cpu_load_percent === null
+          ? '--'
+          : `${stats.cpu_load_percent}% (${stats.cpu_cores} coeurs)`;
+      }
+      if (this.systemMemory) {
+        this.systemMemory.textContent = stats.memory_total_bytes === null
+          ? '--'
+          : `${this.formatBytes(stats.memory_used_bytes)} / ${this.formatBytes(stats.memory_total_bytes)}`;
+      }
+      if (this.systemDisk) this.systemDisk.textContent = this.formatBytes(stats.disk_free_bytes);
+      if (this.systemUptime) this.systemUptime.textContent = this.formatUptime(stats.uptime_seconds);
+      this.systemStatsError?.classList.add('hidden');
+    } catch (err) {
+      console.warn('Failed to fetch Raspberry Pi statistics:', err);
+      if (this.systemStatsError) {
+        this.systemStatsError.textContent = err.message;
+        this.systemStatsError.classList.remove('hidden');
+      }
+    }
+  }
+
+  async shutdownSystem() {
+    const confirmed = window.confirm('Éteindre le Raspberry Pi ? Le dashboard et les satellites seront arrêtés.');
+    if (!confirmed) return;
+
+    if (this.systemShutdownBtn) this.systemShutdownBtn.disabled = true;
+    try {
+      await api.shutdownSystem();
+      if (this.systemShutdownBtn) this.systemShutdownBtn.innerHTML = '<i data-lucide="loader-circle"></i><span>Arrêt en cours</span>';
+      if (window.lucide) window.lucide.createIcons({ root: this.systemShutdownBtn });
+    } catch (err) {
+      window.alert(`Impossible d’éteindre le Raspberry Pi : ${err.message}`);
+      if (this.systemShutdownBtn) this.systemShutdownBtn.disabled = false;
     }
   }
 

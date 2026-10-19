@@ -196,6 +196,53 @@ body {
   gap: 16px;
 }
 
+.system-stats-panel {
+  max-width: 1360px;
+  margin: 0 auto 20px;
+  padding: 14px 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+}
+
+.system-stats-heading,
+.system-stats-title,
+.system-stats-grid {
+  display: flex;
+  align-items: center;
+}
+
+.system-stats-heading {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.system-stats-title {
+  gap: 8px;
+  color: var(--text-main);
+  font-weight: 700;
+}
+
+.system-stats-title svg { width: 17px; height: 17px; color: var(--color-accent); }
+.system-hostname { margin-left: 10px; color: var(--text-muted); font-size: 0.82rem; }
+
+.system-stats-grid {
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.system-stats-grid > div {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.system-stats-grid span { color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; }
+.system-stats-grid strong { color: var(--text-main); font-family: "JetBrains Mono", monospace; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.system-stats-error { margin: 10px 0 0; color: var(--color-danger); font-size: 0.82rem; }
+
 /* ==========================================================================
    Match Status Card (live state at a glance, decoupled from history browsing)
    ========================================================================== */
@@ -2056,6 +2103,8 @@ html, body {
   .header-actions .btn { min-width: 40px; padding-inline: 10px; }
   .server-status-pill,
   .usb-satellite-status { padding: 5px 10px; font-size: 0.76rem; }
+  .system-stats-panel { margin: 0 12px 14px; padding: 12px; }
+  .system-stats-grid { display: grid; grid-template-columns: 1fr 1fr; row-gap: 14px; }
 
   .kpi-banner-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

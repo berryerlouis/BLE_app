@@ -97,12 +97,35 @@
         <i data-lucide="cpu"></i>
         <span>Firmware</span>
       </button>
+      <button id="system-stats-btn" class="btn btn-secondary btn-sm" type="button" title="Afficher les statistiques du Raspberry Pi">
+        <i data-lucide="gauge"></i>
+        <span>RPi</span>
+      </button>
       <div class="server-status-pill">
         <span id="conn-dot" class="status-dot dot-offline"></span>
         <span id="conn-text">Serveur déconnecté</span>
       </div>
     </div>
   </header>
+
+  <section id="system-stats-panel" class="system-stats-panel hidden" aria-live="polite">
+    <div class="system-stats-heading">
+      <div>
+        <span class="system-stats-title"><i data-lucide="monitor-cog"></i> Raspberry Pi</span>
+        <span id="system-hostname" class="system-hostname">--</span>
+      </div>
+      <button id="system-shutdown-btn" class="btn btn-danger btn-sm" type="button" title="Éteindre le Raspberry Pi">
+        <i data-lucide="power"></i><span>Éteindre</span>
+      </button>
+    </div>
+    <div class="system-stats-grid">
+      <div><span>Processeur</span><strong id="system-cpu">--</strong></div>
+      <div><span>Mémoire</span><strong id="system-memory">--</strong></div>
+      <div><span>Stockage libre</span><strong id="system-disk">--</strong></div>
+      <div><span>Disponibilité</span><strong id="system-uptime">--</strong></div>
+    </div>
+    <p id="system-stats-error" class="system-stats-error hidden"></p>
+  </section>
 
   <!-- Main Content Body -->
   <main>

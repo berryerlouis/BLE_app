@@ -176,6 +176,10 @@ nmcli connection modify "Wired connection 1" connection.autoconnect yes connecti
 
 Le dashboard reste aussi accessible via l’IP Ethernet du Raspberry Pi.
 
+## Supervision et arrêt du Raspberry Pi
+
+Le bouton **« RPi »** dans l’en-tête affiche la charge processeur, la mémoire utilisée, l’espace de stockage restant et la durée de fonctionnement. Il permet également de demander l’arrêt du Raspberry Pi après confirmation. L’installation doit copier la règle `scripts/ble-central-shutdown.sudoers` dans `/etc/sudoers.d/ble-central-shutdown` avec les permissions `0440`, afin que le service puisse exécuter exclusivement `/sbin/shutdown -h now` sans mot de passe.
+
 ## Mise à jour automatique
 
 Le pied de page du dashboard affiche la version courante et l’auteur, et le serveur expose les endpoints suivants :

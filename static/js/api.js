@@ -152,6 +152,21 @@ export const api = {
     return await res.json();
   },
 
+  // --- Raspberry Pi system ---
+
+  async fetchSystemStats() {
+    const res = await fetch('/api/system/stats', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`Erreur récupération statistiques RPi (${res.status})`);
+    return await res.json();
+  },
+
+  async shutdownSystem() {
+    const res = await fetch('/api/system/shutdown', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erreur lors de l’arrêt du Raspberry Pi');
+    return data;
+  },
+
   // --- Satellite Firmware (USB flashing) ---
 
   async fetchFirmwareList() {
