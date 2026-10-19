@@ -63,6 +63,7 @@ def create_app(
     # Device routes
     app.router.add_get("/api/devices", list_devices_handler)
     app.router.add_get("/api/devices/{device_id}/log", device_log_handler)
+    app.router.add_delete("/api/devices/{device_id}", delete_device_handler)
     app.router.add_post("/api/devices/{device_id}/label", set_device_label_handler)
     app.router.add_post("/api/devices/{device_id}/threshold", set_device_threshold_handler)
     app.router.add_post("/api/devices/{device_id}/rotation-threshold", set_device_rotation_threshold_handler)
@@ -310,6 +311,36 @@ async def device_log_handler(request: web.Request) -> web.Response:
 
     log_buffer = request.app["logs"].get(device_id, deque())
     return web.json_response(list(log_buffer))
+
+
+async def delete_device_handler(request: web.Request) -> web.Response:
+    """Forgets a satellite: its summary and all of its recorded history."""
+    device_id = request.match_info["device_id"]
+    app = request.app
+    if device_id not in app["devices"]:
+        return web.json_response({"error": "Satellite inconnu"}, status=404)
+
+    # Flush pending writes first so queued samples can't recreate the deleted satellite.
+    queue = app["db_queue"]
+    pending = []
+    while not queue.empty():
+        pending.append(queue.get_nowait())
+    for entry in pending:
+        if entry[0] != device_id:
+            queue.put_nowait(entry)
+
+    await app["db"].delete_device(device_id)
+    app["devices"].pop(device_id, None)
+    app["logs"].pop(device_id, None)
+    for key in [k for k in app["alert_active"] if k[0] == device_id]:
+        app["alert_active"].pop(key, None)
+    app["last_websocket_imu"].pop(device_id, None)
+    app["last_persisted_imu"].pop(device_id, None)
+
+    await _broadcast_message(
+        app, {"type": "device_deleted", "device_id": device_id, "timestamp": time.time()}
+    )
+    return web.json_response({"success": True})
 
 
 async def set_device_label_handler(request: web.Request) -> web.Response:

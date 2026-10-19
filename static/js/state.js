@@ -122,6 +122,14 @@ class StateStore {
     }
 
     // Handle session lifecycle events
+    if (msg.type === 'device_deleted') {
+      this.devices.delete(msg.device_id);
+      this.maxGSession.delete(msg.device_id);
+      this.notify('device_deleted', { deviceId: msg.device_id });
+      this.notify('devices_updated', { devices: this.devices });
+      return;
+    }
+
     if (msg.type === 'session_created') {
       this.activeSession = msg.session;
       this.sessions = [msg.session, ...this.sessions.map((s) => ({ ...s, is_active: false }))];

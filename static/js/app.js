@@ -2,13 +2,13 @@
  * Main Application Orchestrator
  */
 import { CONFIG } from './config.js?v=20260929-rotation-800';
-import { api } from './api.js?v=20260929-rotation-threshold';
-import { state } from './state.js?v=20260929-live-rssi';
+import { api } from './api.js?v=20261019-device-delete';
+import { state } from './state.js?v=20261019-device-delete';
 import { wsClient } from './websocket.js?v=20260929-live-state';
 import { ChartManager } from './charts.js?v=20261013-peak-markers';
-import { ModalView } from './views/modalView.js?v=20260929-mobile-status';
-import { DashboardView } from './views/dashboardView.js?v=20261013-no-threshold-col';
-import { PlayerView } from './views/playerView.js?v=20261013-threshold-slider';
+import { ModalView } from './views/modalView.js?v=20261019-device-delete';
+import { DashboardView } from './views/dashboardView.js?v=20261019-device-delete';
+import { PlayerView } from './views/playerView.js?v=20261019-device-delete';
 import { progressBar, sessionLoader } from './utils.js?v=20261013-threshold-bars';
 
 class App {
@@ -212,6 +212,14 @@ class App {
       this.dashboardView.renderSessionSelector();
       if (state.currentDeviceId) {
         this.playerView.open(state.currentDeviceId, payload.selectedSessionId);
+      }
+    } else if (event === 'device_deleted') {
+      this.modalView.labelQueue = this.modalView.labelQueue.filter((id) => id !== payload.deviceId);
+      if (this.modalView.activeLabelDeviceId === payload.deviceId) {
+        this.modalView.hideLabelModal();
+      }
+      if (state.currentDeviceId === payload.deviceId) {
+        this.showDashboardView();
       }
     } else if (event === 'devices_updated') {
       if (!state.currentDeviceId) {

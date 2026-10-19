@@ -2,8 +2,8 @@
  * Modals & Dialogs Management
  */
 import { CONFIG } from '../config.js';
-import { api } from '../api.js';
-import { state } from '../state.js?v=20260929-live-rssi';
+import { api } from '../api.js?v=20261019-device-delete';
+import { state } from '../state.js?v=20261019-device-delete';
 import { escapeHtml, formatDuration } from '../utils.js';
 
 export class ModalView {
@@ -16,6 +16,7 @@ export class ModalView {
     this.labelError = document.getElementById('label-error');
     this.labelSaveBtn = document.getElementById('label-save-btn');
     this.labelLaterBtn = document.getElementById('label-later-btn');
+    this.labelDeleteBtn = document.getElementById('label-delete-btn');
 
     this.updateModal = document.getElementById('update-modal');
     this.updateConfirmBtn = document.getElementById('update-confirm-btn');
@@ -81,6 +82,7 @@ export class ModalView {
     });
 
     this.labelSaveBtn?.addEventListener('click', () => this.handleSaveLabel());
+    this.labelDeleteBtn?.addEventListener('click', () => this.handleDeleteDevice());
 
     this.sessionCancelBtn?.addEventListener('click', () => {
       this.hideSessionModal();
@@ -152,12 +154,37 @@ export class ModalView {
       this.labelNumberInput.value = Number.isInteger(d.label_number) ? d.label_number : '';
     }
     this.labelError?.classList.add('hidden');
+    this.labelDeleteBtn?.classList.toggle('hidden', mode !== 'edit');
     this.labelModal?.classList.remove('hidden');
   }
 
   hideLabelModal() {
     this.labelModal?.classList.add('hidden');
     this.activeLabelDeviceId = null;
+  }
+
+  async handleDeleteDevice() {
+    const deviceId = this.activeLabelDeviceId;
+    if (!deviceId) return;
+
+    const device = state.devices.get(deviceId) || {};
+    const name = device.label_name || device.device_name || deviceId;
+    const confirmed = window.confirm(
+      `Supprimer définitivement le satellite « ${name} » et tout son historique ? Cette action est irréversible.`
+    );
+    if (!confirmed) return;
+
+    this.labelDeleteBtn.disabled = true;
+    try {
+      await api.deleteDevice(deviceId);
+      state.handleWebSocketMessage({ type: 'device_deleted', device_id: deviceId });
+      this.hideLabelModal();
+      this.processLabelQueue();
+    } catch (err) {
+      this.showLabelError(err.message);
+    } finally {
+      this.labelDeleteBtn.disabled = false;
+    }
   }
 
   async handleSaveLabel() {

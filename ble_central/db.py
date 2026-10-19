@@ -420,6 +420,15 @@ class Database:
             )
             self._conn.commit()
 
+    async def delete_device(self, device_id: str) -> None:
+        await asyncio.get_running_loop().run_in_executor(None, self._delete_device_sync, device_id)
+
+    def _delete_device_sync(self, device_id: str) -> None:
+        with self._lock:
+            self._conn.execute("DELETE FROM logs WHERE device_id = ?", (device_id,))
+            self._conn.execute("DELETE FROM devices WHERE device_id = ?", (device_id,))
+            self._conn.commit()
+
     def _extract_item_fields(self, item: dict) -> tuple[str | None, float | None, float | None, int | None, float | None]:
         t = item.get("type")
         mag = None

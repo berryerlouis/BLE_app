@@ -60,6 +60,13 @@ export const api = {
     return data;
   },
 
+  async deleteDevice(deviceId) {
+    const res = await fetch(`/api/devices/${encodeURIComponent(deviceId)}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erreur lors de la suppression du satellite');
+    return data;
+  },
+
   // --- Match Sessions API ---
 
   async fetchSessions() {
