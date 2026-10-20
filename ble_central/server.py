@@ -314,7 +314,7 @@ async def device_log_handler(request: web.Request) -> web.Response:
 
 
 async def delete_device_handler(request: web.Request) -> web.Response:
-    """Forgets a satellite: its summary and all of its recorded history."""
+    """Hides a satellite from the live list while retaining its match history."""
     device_id = request.match_info["device_id"]
     app = request.app
     if device_id not in app["devices"]:
@@ -329,7 +329,7 @@ async def delete_device_handler(request: web.Request) -> web.Response:
         if entry[0] != device_id:
             queue.put_nowait(entry)
 
-    await app["db"].delete_device(device_id)
+    await app["db"].hide_device(device_id)
     app["devices"].pop(device_id, None)
     app["logs"].pop(device_id, None)
     for key in [k for k in app["alert_active"] if k[0] == device_id]:
@@ -1102,4 +1102,3 @@ async def _stop_broadcaster(app: web.Application) -> None:
 async def _close_websockets(app: web.Application) -> None:
     for ws in set(app["websockets"]):
         await ws.close(code=1001, message=b"Server shutdown")
-

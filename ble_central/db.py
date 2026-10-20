@@ -50,7 +50,8 @@ class Database:
                     impact_threshold REAL,
                     impact_alert INTEGER,
                     rotation_threshold REAL,
-                    rotation_alert INTEGER
+                    rotation_alert INTEGER,
+                    hidden INTEGER DEFAULT 0
                 );
 
                 CREATE TABLE IF NOT EXISTS logs (
@@ -78,6 +79,8 @@ class Database:
                 self._conn.execute("ALTER TABLE devices ADD COLUMN impact_threshold REAL")
             if "impact_alert" not in device_cols:
                 self._conn.execute("ALTER TABLE devices ADD COLUMN impact_alert INTEGER")
+            if "hidden" not in device_cols:
+                self._conn.execute("ALTER TABLE devices ADD COLUMN hidden INTEGER DEFAULT 0")
             if "rotation_threshold" not in device_cols:
                 self._conn.execute("ALTER TABLE devices ADD COLUMN rotation_threshold REAL")
             if "rotation_alert" not in device_cols:
@@ -366,8 +369,10 @@ class Database:
             devices = {}
             for row in self._conn.execute(
                 "SELECT device_id, summary, label_name, label_number, impact_threshold, impact_alert, "
-                "rotation_threshold, rotation_alert FROM devices"
+                "rotation_threshold, rotation_alert, hidden FROM devices"
             ):
+                if row["hidden"]:
+                    continue
                 summary = json.loads(row["summary"])
                 if row["label_name"] is not None:
                     summary["label_name"] = row["label_name"]
@@ -420,13 +425,12 @@ class Database:
             )
             self._conn.commit()
 
-    async def delete_device(self, device_id: str) -> None:
-        await asyncio.get_running_loop().run_in_executor(None, self._delete_device_sync, device_id)
+    async def hide_device(self, device_id: str) -> None:
+        await asyncio.get_running_loop().run_in_executor(None, self._hide_device_sync, device_id)
 
-    def _delete_device_sync(self, device_id: str) -> None:
+    def _hide_device_sync(self, device_id: str) -> None:
         with self._lock:
-            self._conn.execute("DELETE FROM logs WHERE device_id = ?", (device_id,))
-            self._conn.execute("DELETE FROM devices WHERE device_id = ?", (device_id,))
+            self._conn.execute("UPDATE devices SET hidden = 1 WHERE device_id = ?", (device_id,))
             self._conn.commit()
 
     def _extract_item_fields(self, item: dict) -> tuple[str | None, float | None, float | None, int | None, float | None]:
@@ -614,4 +618,3 @@ class Database:
 
     async def close(self) -> None:
         await asyncio.get_running_loop().run_in_executor(None, self._conn.close)
-

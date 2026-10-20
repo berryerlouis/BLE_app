@@ -170,7 +170,7 @@ export class ModalView {
     const device = state.devices.get(deviceId) || {};
     const name = device.label_name || device.device_name || deviceId;
     const confirmed = window.confirm(
-      `Supprimer définitivement le satellite « ${name} » et tout son historique ? Cette action est irréversible.`
+      `Retirer le satellite « ${name} » de la liste actuelle ? Ses données dans les matchs archivés seront conservées.`
     );
     if (!confirmed) return;
 
