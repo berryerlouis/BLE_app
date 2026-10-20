@@ -159,7 +159,7 @@ class App {
       if (this.systemCpu) {
         this.systemCpu.textContent = stats.cpu_load_percent === null
           ? '--'
-          : `${stats.cpu_load_percent}% (${stats.cpu_cores} coeurs)`;
+          : `${stats.cpu_load_percent}%`;
       }
       if (this.systemMemory) {
         this.systemMemory.textContent = stats.memory_total_bytes === null
