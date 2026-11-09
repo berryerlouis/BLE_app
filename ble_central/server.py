@@ -1035,13 +1035,13 @@ async def _stop_db_writer(app: web.Application) -> None:
 async def _broadcast_message(app: web.Application, item: dict) -> None:
     message = json.dumps(item)
     dead = []
-    for ws in app["websockets"]:
+    for ws in list(app["websockets"]):
         if ws.closed:
             dead.append(ws)
             continue
         try:
             await ws.send_str(message)
-        except ConnectionResetError:
+        except Exception:
             dead.append(ws)
     for ws in dead:
         app["websockets"].discard(ws)
@@ -1051,25 +1051,34 @@ async def _broadcast_loop(app: web.Application) -> None:
     queue: "asyncio.Queue[dict]" = app["data_queue"]
     while True:
         item = await queue.get()
-        alert_events = _update_state(app, item)
-        device_id = item.get("device_id")
+        try:
+            await _process_item(app, item)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("Failed to process BLE item %s", item.get("type"))
+
+
+async def _process_item(app: web.Application, item: dict) -> None:
+    alert_events = _update_state(app, item)
+    device_id = item.get("device_id")
+    if device_id:
+        if _should_emit_imu(app["last_persisted_imu"], item, app["persistence_imu_interval_s"]):
+            _persist_state(app, device_id, item)
+    broadcast_item = item
+    if item.get("type") == "firmware_version" and device_id:
+        summary = app["devices"].get(device_id, {})
+        broadcast_item = {
+            **item,
+            "latest_firmware_version": summary.get("latest_firmware_version"),
+            "firmware_update_available": summary.get("firmware_update_available", False),
+        }
+    if _should_emit_imu(app["last_websocket_imu"], item, app["websocket_imu_interval_s"]):
+        await _broadcast_message(app, broadcast_item)
+    for alert_event in alert_events:
         if device_id:
-            if _should_emit_imu(app["last_persisted_imu"], item, app["persistence_imu_interval_s"]):
-                _persist_state(app, device_id, item)
-        broadcast_item = item
-        if item.get("type") == "firmware_version" and device_id:
-            summary = app["devices"].get(device_id, {})
-            broadcast_item = {
-                **item,
-                "latest_firmware_version": summary.get("latest_firmware_version"),
-                "firmware_update_available": summary.get("firmware_update_available", False),
-            }
-        if _should_emit_imu(app["last_websocket_imu"], item, app["websocket_imu_interval_s"]):
-            await _broadcast_message(app, broadcast_item)
-        for alert_event in alert_events:
-            if device_id:
-                _persist_state(app, device_id, alert_event)
-            await _broadcast_message(app, alert_event)
+            _persist_state(app, device_id, alert_event)
+        await _broadcast_message(app, alert_event)
 
 
 def _should_emit_imu(last_emit: dict[str, float], item: dict, interval_s: float) -> bool:

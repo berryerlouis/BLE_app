@@ -312,7 +312,14 @@ class Database:
 
     def _activate_session_sync(self, session_id: int) -> dict | None:
         with self._lock:
-            self._conn.execute("UPDATE sessions SET is_active = 0")
+            exists = self._conn.execute("SELECT 1 FROM sessions WHERE id = ?", (session_id,)).fetchone()
+            if not exists:
+                return None
+            now = time.time()
+            self._conn.execute(
+                "UPDATE sessions SET is_active = 0, end_time = COALESCE(end_time, ?) WHERE is_active = 1 AND id != ?",
+                (now, session_id),
+            )
             self._conn.execute("UPDATE sessions SET is_active = 1, end_time = NULL WHERE id = ?", (session_id,))
             self._conn.commit()
             row = self._conn.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()

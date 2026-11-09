@@ -177,6 +177,7 @@ class DeviceManager:
                 if self._stop.is_set():
                     break
                 if connection_failed:
+                    self._emit_status(address, name, "disconnected")
                     # Ignore advertisements received during the failed attempt and let
                     # BlueZ release its pending connection before trying again.
                     self._seen_events.setdefault(address, asyncio.Event()).clear()

@@ -162,7 +162,7 @@ class StateStore {
       return;
     } else if (msg.type === 'session_deleted') {
       this.sessions = this.sessions.filter((s) => s.id !== msg.session_id);
-      if (msg.active_session) this.activeSession = msg.active_session;
+      if (msg.active_session !== undefined) this.activeSession = msg.active_session;
       if (this.selectedSessionId === msg.session_id) {
         this.selectedSessionId = null;
       }
