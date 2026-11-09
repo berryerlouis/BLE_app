@@ -54,6 +54,11 @@ class Database:
                     hidden INTEGER DEFAULT 0
                 );
 
+                CREATE TABLE IF NOT EXISTS settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                );
+
                 CREATE TABLE IF NOT EXISTS logs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     session_id INTEGER,
@@ -429,6 +434,24 @@ class Database:
                     summary.get("rotation_threshold", DEFAULT_ROTATION_THRESHOLD),
                     int(bool(summary.get("rotation_alert"))),
                 ),
+            )
+            self._conn.commit()
+
+    async def load_settings(self) -> dict:
+        return await asyncio.get_running_loop().run_in_executor(None, self._load_settings_sync)
+
+    def _load_settings_sync(self) -> dict:
+        with self._lock:
+            return {row["key"]: json.loads(row["value"]) for row in self._conn.execute("SELECT key, value FROM settings")}
+
+    async def save_settings(self, values: dict) -> None:
+        await asyncio.get_running_loop().run_in_executor(None, self._save_settings_sync, values)
+
+    def _save_settings_sync(self, values: dict) -> None:
+        with self._lock:
+            self._conn.executemany(
+                "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                [(key, json.dumps(value)) for key, value in values.items()],
             )
             self._conn.commit()
 

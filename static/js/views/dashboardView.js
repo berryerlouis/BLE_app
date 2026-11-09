@@ -1,7 +1,7 @@
 /**
  * Dashboard Overview View (First Page)
  */
-import { state } from '../state.js?v=20261019-device-delete';
+import { state } from '../state.js?v=20261020-rotation-toggle';
 import {
   fmt,
   calcAccelMagnitude,

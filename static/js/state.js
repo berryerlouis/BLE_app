@@ -1,7 +1,7 @@
 /**
  * Application State Store
  */
-import { CONFIG } from './config.js?v=20260929-rotation-800';
+import { CONFIG } from './config.js?v=20261021-wahoo-modals';
 
 class StateStore {
   constructor() {
@@ -171,6 +171,18 @@ class StateStore {
         activeSession: this.activeSession,
         selectedSessionId: this.selectedSessionId,
       });
+      return;
+    }
+
+    if (msg.type === 'global_thresholds') {
+      this.globalThresholds = { ...msg.thresholds };
+      for (const device of this.devices.values()) {
+        device.impact_threshold = msg.thresholds.impact_threshold;
+        device.rotation_threshold = msg.thresholds.rotation_threshold;
+        if (msg.thresholds.rotation_alert_enabled === false) device.rotation_alert = false;
+      }
+      this.notify('global_thresholds', { thresholds: this.globalThresholds });
+      this.notify('devices_updated', { devices: this.devices });
       return;
     }
 

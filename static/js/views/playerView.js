@@ -1,9 +1,9 @@
 /**
  * Player Detail View (Second Page)
  */
-import { CONFIG } from '../config.js?v=20260929-rotation-800';
-import { api } from '../api.js?v=20261019-device-delete';
-import { state } from '../state.js?v=20261019-device-delete';
+import { CONFIG } from '../config.js?v=20261021-wahoo-modals';
+import { api } from '../api.js?v=20261020-rotation-toggle';
+import { state } from '../state.js?v=20261020-rotation-toggle';
 import {
   fmt,
   calcAccelMagnitude,
@@ -193,8 +193,7 @@ export class PlayerView {
     input.disabled = true;
     if (range) range.disabled = true;
     try {
-      if (isRotation) await api.updateDeviceRotationThreshold(deviceId, value);
-      else await api.updateDeviceThreshold(deviceId, value);
+      await api.updateGlobalThresholds({ [isRotation ? 'rotation_threshold' : 'impact_threshold']: value });
       this.showThresholdError('');
       if (isRotation) dev.rotation_threshold = value;
       else dev.impact_threshold = value;

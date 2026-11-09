@@ -1,9 +1,9 @@
 /**
  * Modals & Dialogs Management
  */
-import { CONFIG } from '../config.js';
-import { api } from '../api.js?v=20261019-device-delete';
-import { state } from '../state.js?v=20261019-device-delete';
+import { CONFIG } from '../config.js?v=20261021-wahoo-modals';
+import { api } from '../api.js?v=20261020-rotation-toggle';
+import { state } from '../state.js?v=20261020-rotation-toggle';
 import { escapeHtml, formatDuration } from '../utils.js';
 
 export class ModalView {
@@ -68,11 +68,61 @@ export class ModalView {
     this.labelSnoozedUntil = new Map();
     this.activeLabelDeviceId = null;
     this.labelModalMode = 'create'; // 'create' | 'edit'
+    this.labelWarning = document.getElementById('label-warning');
+    this.duplicateAckKey = null;
+
+    this.confirmModal = document.getElementById('confirm-modal');
+    this.confirmTitle = document.getElementById('confirm-title');
+    this.confirmMessage = document.getElementById('confirm-message');
+    this.confirmOkBtn = document.getElementById('confirm-ok-btn');
+    this.confirmCancelBtn = document.getElementById('confirm-cancel-btn');
+    this.confirmResolver = null;
+
+    this.firmwareBusyHint = document.getElementById('firmware-busy-hint');
+    this.firmwareItems = [];
+    this.firmwareStallTimer = null;
+
+    this.updateRestartTimer = null;
 
     this.initEvents();
   }
 
+  toggleModal(el, visible) {
+    el?.classList.toggle('hidden', !visible);
+  }
+
   initEvents() {
+    this.labelNameInput?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') this.handleSaveLabel();
+    });
+    this.labelNumberInput?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') this.handleSaveLabel();
+    });
+    this.labelNameInput?.addEventListener('input', () => this.resetDuplicateAck());
+    this.labelNumberInput?.addEventListener('input', () => this.resetDuplicateAck());
+
+    this.confirmOkBtn?.addEventListener('click', () => this.closeConfirm(true));
+    this.confirmCancelBtn?.addEventListener('click', () => this.closeConfirm(false));
+
+    this.sessionModal?.addEventListener('click', (event) => {
+      if (event.target === this.sessionModal) this.hideSessionModal();
+    });
+    this.endSessionModal?.addEventListener('click', (event) => {
+      if (event.target === this.endSessionModal) this.hideEndSessionModal();
+    });
+    this.firmwareModal?.addEventListener('click', (event) => {
+      if (event.target === this.firmwareModal) this.hideFirmwareModal();
+    });
+    document.addEventListener('keydown', (event) => this.handleGlobalEscape(event));
+
+    // Event delegation: one listener serves every firmware row, even after re-rendering.
+    this.firmwareList?.addEventListener('click', (event) => {
+      const item = event.target.closest('.firmware-list-item');
+      if (!item) return;
+      this.selectedFirmwareFilename = item.dataset.filename;
+      this.renderFirmwareList(this.firmwareItems);
+    });
+
     this.labelLaterBtn?.addEventListener('click', () => {
       if (this.labelModalMode === 'create' && this.activeLabelDeviceId) {
         this.labelSnoozedUntil.set(this.activeLabelDeviceId, Date.now() + CONFIG.LABEL_SNOOZE_MS);
@@ -154,6 +204,7 @@ export class ModalView {
       this.labelNumberInput.value = Number.isInteger(d.label_number) ? d.label_number : '';
     }
     this.labelError?.classList.add('hidden');
+    this.resetDuplicateAck();
     this.labelDeleteBtn?.classList.toggle('hidden', mode !== 'edit');
     this.labelModal?.classList.remove('hidden');
   }
@@ -169,12 +220,16 @@ export class ModalView {
 
     const device = state.devices.get(deviceId) || {};
     const name = device.label_name || device.device_name || deviceId;
-    const confirmed = window.confirm(
-      `Retirer le satellite « ${name} » de la liste actuelle ? Ses données dans les matchs archivés seront conservées.`
-    );
+    const confirmed = await this.confirm({
+      eyebrow: 'Retrait',
+      title: 'Retirer ce satellite ?',
+      message: `« ${name} » sera retiré de la liste actuelle. Ses données dans les matchs archivés seront conservées.`,
+      okLabel: 'Retirer',
+      danger: true,
+    });
     if (!confirmed) return;
 
-    this.labelDeleteBtn.disabled = true;
+    if (this.labelDeleteBtn) this.labelDeleteBtn.disabled = true;
     try {
       await api.deleteDevice(deviceId);
       state.handleWebSocketMessage({ type: 'device_deleted', device_id: deviceId });
@@ -183,13 +238,65 @@ export class ModalView {
     } catch (err) {
       this.showLabelError(err.message);
     } finally {
-      this.labelDeleteBtn.disabled = false;
+      if (this.labelDeleteBtn) this.labelDeleteBtn.disabled = false;
     }
   }
 
+  /** Promise-based in-app replacement for window.confirm. */
+  confirm({ eyebrow = 'Confirmation', title, message, okLabel = 'Confirmer', danger = false }) {
+    if (!this.confirmModal) return Promise.resolve(window.confirm(message));
+    // A new request cancels any pending one so its promise is not left hanging.
+    if (this.confirmResolver) this.closeConfirm(false);
+
+    this.confirmModal.querySelector('.modal-eyebrow').textContent = eyebrow;
+    this.confirmTitle.textContent = title;
+    this.confirmMessage.textContent = message;
+    this.confirmOkBtn.textContent = okLabel;
+    this.confirmOkBtn.classList.toggle('btn-danger', danger);
+    this.toggleModal(this.confirmModal, true);
+    this.confirmOkBtn.focus();
+
+    return new Promise((resolve) => {
+      this.confirmResolver = resolve;
+    });
+  }
+
+  closeConfirm(result) {
+    this.toggleModal(this.confirmModal, false);
+    const resolve = this.confirmResolver;
+    this.confirmResolver = null;
+    resolve?.(result);
+  }
+
+  /** Escape closes the topmost dismissable modal. The label modal is excluded: closing it means "later". */
+  handleGlobalEscape(event) {
+    if (event.key !== 'Escape') return;
+    if (this.confirmResolver) {
+      this.closeConfirm(false);
+    } else if (this.endSessionModal && !this.endSessionModal.classList.contains('hidden')) {
+      this.hideEndSessionModal();
+    } else if (this.sessionModal && !this.sessionModal.classList.contains('hidden')) {
+      this.hideSessionModal();
+    } else if (this.firmwareModal && !this.firmwareModal.classList.contains('hidden')) {
+      this.hideFirmwareModal();
+    }
+  }
+
+  findDuplicateNumber(number, deviceId) {
+    for (const [id, device] of state.devices) {
+      if (id !== deviceId && device.label_number === number) return device;
+    }
+    return null;
+  }
+
+  resetDuplicateAck() {
+    this.duplicateAckKey = null;
+    this.toggleModal(this.labelWarning, false);
+  }
+
   async handleSaveLabel() {
-    const name = this.labelNameInput.value.trim();
-    const number = Number(this.labelNumberInput.value);
+    const name = this.labelNameInput?.value.trim() || '';
+    const number = Number(this.labelNumberInput?.value);
 
     if (!name) {
       this.showLabelError('Le nom du joueur est requis.');
@@ -201,7 +308,21 @@ export class ModalView {
     }
 
     const deviceId = this.activeLabelDeviceId;
-    this.labelSaveBtn.disabled = true;
+    if (!deviceId) return;
+
+    // Warn once about a duplicate number; a second click on the same choice saves anyway.
+    const duplicate = this.findDuplicateNumber(number, deviceId);
+    const ackKey = `${deviceId}:${number}`;
+    if (duplicate && this.duplicateAckKey !== ackKey) {
+      this.duplicateAckKey = ackKey;
+      if (this.labelWarning) {
+        this.labelWarning.textContent = `Le numéro ${number} est déjà utilisé par « ${duplicate.label_name || duplicate.device_id} ». Cliquez à nouveau pour l'attribuer quand même.`;
+      }
+      this.toggleModal(this.labelWarning, true);
+      return;
+    }
+
+    if (this.labelSaveBtn) this.labelSaveBtn.disabled = true;
 
     try {
       const updated = await api.updateDeviceLabel(deviceId, name, number);
@@ -212,12 +333,13 @@ export class ModalView {
         label_number: updated.label_number,
       });
       state.notify('devices_updated', { devices: state.devices });
+      this.resetDuplicateAck();
       this.hideLabelModal();
       this.processLabelQueue();
     } catch (err) {
       this.showLabelError(err.message);
     } finally {
-      this.labelSaveBtn.disabled = false;
+      if (this.labelSaveBtn) this.labelSaveBtn.disabled = false;
     }
   }
 
@@ -341,32 +463,49 @@ export class ModalView {
   }
 
   async handleApplyUpdate() {
-    this.updateConfirmBtn.disabled = true;
-    this.updateCancelBtn.disabled = true;
+    if (this.updateConfirmBtn) this.updateConfirmBtn.disabled = true;
+    if (this.updateCancelBtn) this.updateCancelBtn.disabled = true;
     this.showUpdateProgress();
-
-    let progress = 0;
-    const progressInterval = setInterval(() => {
-      progress += Math.random() * 20;
-      if (progress > 90) progress = 90;
-      this.setUpdateProgress(progress, 'Mise à jour en cours...');
-    }, 500);
 
     try {
       await api.applyUpdate();
-      clearInterval(progressInterval);
-      this.setUpdateProgress(100, 'Installation terminée, redémarrage...');
-      if (this.updateStatus) this.updateStatus.textContent = 'Mise à jour appliquée, redémarrage...';
-      setTimeout(() => window.location.reload(), 8000);
     } catch (err) {
-      clearInterval(progressInterval);
       this.setUpdateProgress(0, 'Échec de la mise à jour');
       if (this.updateStatus) this.updateStatus.textContent = 'Échec de la mise à jour.';
-      this.updateConfirmBtn.disabled = false;
-      this.updateCancelBtn.disabled = false;
+      if (this.updateConfirmBtn) this.updateConfirmBtn.disabled = false;
+      if (this.updateCancelBtn) this.updateCancelBtn.disabled = false;
       console.error('Update failed:', err);
+      return;
     }
+
+    // The server restarts after applying the update, so there is no progress to read from it.
+    this.setUpdateProgress(100, 'Installation terminée, redémarrage du serveur...');
+    if (this.updateStatus) this.updateStatus.textContent = 'Mise à jour appliquée, redémarrage...';
+    this.waitForServerThenReload();
   }
+
+  /** Polls until the server answers again, then reloads the page. */
+  waitForServerThenReload() {
+    let attempts = 0;
+    const poll = async () => {
+      attempts += 1;
+      try {
+        await api.checkUpdate();
+        window.location.reload();
+        return;
+      } catch {
+        // Server is still restarting.
+      }
+      if (attempts >= CONFIG.UPDATE_RESTART_MAX_POLLS) {
+        this.setUpdateProgress(100, 'Le serveur ne répond pas. Rechargez la page manuellement.');
+        if (this.updateStatus) this.updateStatus.textContent = 'Redémarrage trop long.';
+        return;
+      }
+      this.updateRestartTimer = setTimeout(poll, CONFIG.UPDATE_RESTART_POLL_MS);
+    };
+    this.updateRestartTimer = setTimeout(poll, CONFIG.UPDATE_RESTART_DELAY_MS);
+  }
+
 
   showUpdateProgress() {
     this.updateMessage?.classList.add('hidden');
@@ -393,8 +532,13 @@ export class ModalView {
   }
 
   hideFirmwareModal() {
-    if (this.isFlashing) return; // don't let the user lose track of an in-progress flash
-    this.firmwareModal?.classList.add('hidden');
+    if (this.isFlashing) {
+      // Explain why the close was refused instead of ignoring the click.
+      this.toggleModal(this.firmwareBusyHint, true);
+      return;
+    }
+    this.toggleModal(this.firmwareBusyHint, false);
+    this.toggleModal(this.firmwareModal, false);
   }
 
   async loadFirmwareList() {
@@ -408,6 +552,7 @@ export class ModalView {
 
   renderFirmwareList(list) {
     if (!this.firmwareList) return;
+    this.firmwareItems = list;
     if (!list.length) {
       this.selectedFirmwareFilename = null;
       this.firmwareList.innerHTML = '<p class="text-muted" id="firmware-list-empty">Aucun firmware importé.</p>';
@@ -426,20 +571,15 @@ export class ModalView {
       const sizeKb = (f.size / 1024).toFixed(0);
       const selected = f.filename === this.selectedFirmwareFilename;
       return `
-        <div class="firmware-list-item ${selected ? 'selected' : ''}" data-filename="${f.filename}">
-          <span class="firmware-name">${f.filename}</span>
-          <span class="firmware-meta">${sizeKb} Ko</span>
+        <div class="firmware-list-item ${selected ? 'selected' : ''}" data-filename="${escapeHtml(f.filename)}">
+          <span class="firmware-name">${escapeHtml(f.filename)}</span>
+          <span class="firmware-meta">${escapeHtml(sizeKb)} Ko</span>
         </div>
       `;
     }).join('');
-    this.firmwareList.querySelectorAll('.firmware-list-item').forEach((el) => {
-      el.addEventListener('click', () => {
-        this.selectedFirmwareFilename = el.dataset.filename;
-        this.renderFirmwareList(list);
-      });
-    });
     this.updateFlashButtonState();
   }
+
 
   async handleUploadFirmware() {
     const file = this.firmwareUploadInput?.files?.[0];
@@ -494,18 +634,38 @@ export class ModalView {
     this.renderBatchFlashProgress();
     this.updateFlashButtonState();
     this.firmwareCloseBtn?.setAttribute('disabled', 'true');
+    this.armFlashWatchdog();
 
     try {
       await api.flashAllFirmware(filename);
     } catch (err) {
-      this.isFlashing = false;
-      this.batchFlashPorts.clear();
+      this.endFlash();
       this.firmwareBatchProgress?.classList.add('hidden');
-      this.firmwareCloseBtn?.removeAttribute('disabled');
-      this.updateFlashButtonState();
       this.showFirmwareError(err.message);
     }
   }
+
+  /** Restarts the no-message timer. If the batch goes silent, the UI is unlocked instead of staying stuck. */
+  armFlashWatchdog() {
+    clearTimeout(this.firmwareStallTimer);
+    this.firmwareStallTimer = setTimeout(() => {
+      if (!this.isFlashing) return;
+      this.endFlash();
+      this.showFirmwareError('Aucune réponse de la carte depuis plus de 2 minutes. Vérifiez les connexions puis relancez le flash.');
+      this.loadSerialPorts();
+    }, CONFIG.FLASH_STALL_MS);
+  }
+
+  endFlash() {
+    clearTimeout(this.firmwareStallTimer);
+    this.firmwareStallTimer = null;
+    this.isFlashing = false;
+    this.batchFlashPorts.clear();
+    this.firmwareCloseBtn?.removeAttribute('disabled');
+    this.toggleModal(this.firmwareBusyHint, false);
+    this.updateFlashButtonState();
+  }
+
 
   renderBatchFlashProgress() {
     if (!this.firmwareBatchProgress) return;
@@ -516,6 +676,7 @@ export class ModalView {
       return `
         <div class="firmware-batch-item ${isDone ? 'is-done' : ''} ${isError ? 'is-error' : ''}">
           <span class="firmware-batch-port">${escapeHtml(port)}</span>
+          <span class="firmware-batch-percent">${percent}%</span>
           <span class="firmware-batch-status">${escapeHtml(status.message)}</span>
           <div class="progress-bar-wrapper"><div class="progress-bar" style="width:${percent}%"></div></div>
         </div>
@@ -536,14 +697,13 @@ export class ModalView {
     status.percent = msg.percent ?? status.percent;
     status.message = msg.message || status.message;
     this.renderBatchFlashProgress();
+    this.armFlashWatchdog();
 
     const complete = Array.from(this.batchFlashPorts.values()).every(
       (entry) => entry.stage === 'done' || entry.stage === 'error',
     );
     if (complete) {
-      this.isFlashing = false;
-      this.firmwareCloseBtn?.removeAttribute('disabled');
-      this.updateFlashButtonState();
+      this.endFlash();
       this.loadSerialPorts();
     }
   }

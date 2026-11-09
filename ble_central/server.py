@@ -30,6 +30,8 @@ DEFAULT_LOGS_DIR = Path(__file__).resolve().parent.parent / "logs"
 MAX_LOG_ENTRIES_PER_DEVICE = 2000
 MAX_IMPACT_THRESHOLD = 200.0
 MAX_ROTATION_THRESHOLD = 2000.0
+GLOBAL_THRESHOLD_KEYS = ("impact_threshold", "rotation_threshold")
+ROTATION_ALERT_KEY = "rotation_alert_enabled"
 
 
 def create_app(
@@ -54,6 +56,11 @@ def create_app(
     app["alert_active"] = {}  # (device_id, kind) -> last sample was above its threshold
     app["active_session"] = None
     app["db"] = Database(db_path)
+    app["global_thresholds"] = {
+        "impact_threshold": DEFAULT_IMPACT_THRESHOLD,
+        "rotation_threshold": DEFAULT_ROTATION_THRESHOLD,
+        ROTATION_ALERT_KEY: True,
+    }
     app["firmware_lock"] = asyncio.Lock()
     firmware.ensure_firmware_dir()
 
@@ -65,9 +72,9 @@ def create_app(
     app.router.add_get("/api/devices/{device_id}/log", device_log_handler)
     app.router.add_delete("/api/devices/{device_id}", delete_device_handler)
     app.router.add_post("/api/devices/{device_id}/label", set_device_label_handler)
-    app.router.add_post("/api/devices/{device_id}/threshold", set_device_threshold_handler)
-    app.router.add_post("/api/devices/{device_id}/rotation-threshold", set_device_rotation_threshold_handler)
     app.router.add_post("/api/devices/{device_id}/impact/reset", reset_device_impact_handler)
+    app.router.add_get("/api/settings/thresholds", get_global_thresholds_handler)
+    app.router.add_post("/api/settings/thresholds", set_global_thresholds_handler)
 
     # Session (Match) routes
     app.router.add_get("/api/sessions", list_sessions_handler)
@@ -247,12 +254,19 @@ async def _load_persisted_state(app: web.Application) -> None:
     app["active_session"] = None
 
     devices, logs = await app["db"].load_all()
+    stored = await app["db"].load_settings()
+    app["global_thresholds"].update(
+        {key: float(stored[key]) for key in GLOBAL_THRESHOLD_KEYS if key in stored}
+    )
+    if ROTATION_ALERT_KEY in stored:
+        app["global_thresholds"][ROTATION_ALERT_KEY] = bool(stored[ROTATION_ALERT_KEY])
     # No BLE link exists yet right after a (re)start: persisted "connected" flags are stale
     # (the process may have crashed/restarted mid-connection), so force everyone offline until
     # the scanner actually re-establishes a live session for each satellite.
     for summary in devices.values():
         summary["connected"] = False
         summary["state"] = "disconnected"
+        summary.update({key: app["global_thresholds"][key] for key in GLOBAL_THRESHOLD_KEYS})
         # The firmware/ folder may have changed (git pull, manual copy) since the last run.
         _refresh_firmware_status(summary)
     app["devices"] = devices
@@ -380,70 +394,58 @@ async def set_device_label_handler(request: web.Request) -> web.Response:
     return web.json_response(summary)
 
 
-async def set_device_threshold_handler(request: web.Request) -> web.Response:
-    device_id = request.match_info["device_id"]
+async def get_global_thresholds_handler(request: web.Request) -> web.Response:
+    return web.json_response(request.app["global_thresholds"])
+
+
+async def set_global_thresholds_handler(request: web.Request) -> web.Response:
     try:
         body = await request.json()
     except json.JSONDecodeError:
         return web.json_response({"error": "Corps JSON invalide"}, status=400)
 
-    try:
-        threshold = float(body.get("threshold"))
-    except (TypeError, ValueError):
-        return web.json_response({"error": "Le seuil doit être un nombre"}, status=400)
-    if not 0 < threshold <= MAX_IMPACT_THRESHOLD:
-        return web.json_response(
-            {"error": f"Le seuil doit être compris entre 0 et {MAX_IMPACT_THRESHOLD:g} g"}, status=400
-        )
+    limits = {"impact_threshold": (MAX_IMPACT_THRESHOLD, "g"), "rotation_threshold": (MAX_ROTATION_THRESHOLD, "deg/s")}
+    updates = {}
+    for key, (maximum, unit) in limits.items():
+        if key not in body:
+            continue
+        try:
+            value = float(body[key])
+        except (TypeError, ValueError):
+            return web.json_response({"error": "Le seuil doit être un nombre"}, status=400)
+        if not 0 < value <= maximum:
+            return web.json_response(
+                {"error": f"Le seuil doit être compris entre 0 et {maximum:g} {unit}"}, status=400
+            )
+        updates[key] = value
+    if ROTATION_ALERT_KEY in body:
+        if not isinstance(body[ROTATION_ALERT_KEY], bool):
+            return web.json_response({"error": "L'alerte rotation doit être un booléen"}, status=400)
+        updates[ROTATION_ALERT_KEY] = body[ROTATION_ALERT_KEY]
+    if not updates:
+        return web.json_response({"error": "Aucun réglage fourni"}, status=400)
 
-    devices = request.app["devices"]
-    summary = devices.setdefault(device_id, {"device_id": device_id, "connected": False, "state": "disconnected"})
-    summary["impact_threshold"] = threshold
-    await request.app["db"].save_device(device_id, summary)
+    app = request.app
+    app["global_thresholds"].update(updates)
+    await app["db"].save_settings(updates)
+
+    threshold_updates = {key: value for key, value in updates.items() if key in GLOBAL_THRESHOLD_KEYS}
+    rotation_disabled = updates.get(ROTATION_ALERT_KEY) is False
+    for summary in app["devices"].values():
+        summary.update(threshold_updates)
+        if rotation_disabled:
+            summary["rotation_alert"] = False
+        await app["db"].save_device(summary["device_id"], summary)
 
     await _broadcast_message(
-        request.app,
+        app,
         {
-            "type": "threshold",
-            "device_id": device_id,
-            "impact_threshold": threshold,
+            "type": "global_thresholds",
+            "thresholds": dict(app["global_thresholds"]),
             "timestamp": time.time(),
         },
     )
-    return web.json_response(summary)
-
-
-async def set_device_rotation_threshold_handler(request: web.Request) -> web.Response:
-    device_id = request.match_info["device_id"]
-    try:
-        body = await request.json()
-    except json.JSONDecodeError:
-        return web.json_response({"error": "Corps JSON invalide"}, status=400)
-
-    try:
-        threshold = float(body.get("threshold"))
-    except (TypeError, ValueError):
-        return web.json_response({"error": "Le seuil doit être un nombre"}, status=400)
-    if not 0 < threshold <= MAX_ROTATION_THRESHOLD:
-        return web.json_response(
-            {"error": f"Le seuil doit être compris entre 0 et {MAX_ROTATION_THRESHOLD:g} deg/s"}, status=400
-        )
-
-    devices = request.app["devices"]
-    summary = devices.setdefault(device_id, {"device_id": device_id, "connected": False, "state": "disconnected"})
-    summary["rotation_threshold"] = threshold
-    await request.app["db"].save_device(device_id, summary)
-
-    await _broadcast_message(
-        request.app,
-        {
-            "type": "rotation_threshold",
-            "device_id": device_id,
-            "rotation_threshold": threshold,
-            "timestamp": time.time(),
-        },
-    )
-    return web.json_response(summary)
+    return web.json_response(app["global_thresholds"])
 
 
 async def reset_device_impact_handler(request: web.Request) -> web.Response:
@@ -826,8 +828,8 @@ def _update_state(app: web.Application, item: dict) -> list[dict]:
     # don't let them make an actively-connected device look stale (or vice versa).
     if not is_historical:
         summary["last_update"] = item.get("timestamp")
-    summary.setdefault("impact_threshold", DEFAULT_IMPACT_THRESHOLD)
-    summary.setdefault("rotation_threshold", DEFAULT_ROTATION_THRESHOLD)
+    for key in GLOBAL_THRESHOLD_KEYS:
+        summary.setdefault(key, app["global_thresholds"][key])
 
     # Attach current session_id to incoming item
     active_session = app.get("active_session")
@@ -870,7 +872,8 @@ def _update_state(app: web.Application, item: dict) -> list[dict]:
                 "historical": is_historical,
             })
         rotation_magnitude = math.sqrt(item["gX"] ** 2 + item["gY"] ** 2 + item["gZ"] ** 2)
-        rotation_above = rotation_magnitude >= summary["rotation_threshold"]
+        rotation_alert_enabled = app["global_thresholds"][ROTATION_ALERT_KEY]
+        rotation_above = rotation_alert_enabled and rotation_magnitude >= summary["rotation_threshold"]
         rotation_was_above = app["alert_active"].get((device_id, "rotation"), False)
         app["alert_active"][(device_id, "rotation")] = rotation_above
         if rotation_above and (

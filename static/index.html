@@ -13,7 +13,7 @@
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   
   <!-- Styles -->
   <link rel="stylesheet" href="static/css/main.css?v=20261020-rpi-system" />
@@ -97,9 +97,9 @@
         <i data-lucide="cpu"></i>
         <span>Firmware</span>
       </button>
-      <button id="system-stats-btn" class="btn btn-secondary btn-sm" type="button" title="Afficher les statistiques du Raspberry Pi">
-        <i data-lucide="gauge"></i>
-        <span>RPi</span>
+      <button id="system-stats-btn" class="btn btn-secondary btn-sm" type="button" title="Système : seuils et statistiques du Raspberry Pi">
+        <i data-lucide="settings"></i>
+        <span>Système</span>
       </button>
       <div class="server-status-pill">
         <span id="conn-dot" class="status-dot dot-offline"></span>
@@ -109,6 +109,32 @@
   </header>
 
   <section id="system-stats-panel" class="system-stats-panel hidden" aria-live="polite">
+    <div class="system-thresholds">
+      <div class="system-stats-heading">
+        <span class="system-stats-title"><i data-lucide="activity"></i> Seuils (tous les joueurs)</span>
+      </div>
+      <div class="system-threshold-grid">
+        <label class="system-threshold">
+          <span class="threshold-card-title">Commotion (g)</span>
+          <span class="system-threshold-controls">
+            <input id="global-impact-range" type="range" min="0.1" max="50" step="0.1" aria-label="Seuil de commotion (g)" />
+            <input id="global-impact-input" class="row-threshold-input" type="number" min="0.1" max="200" step="0.1" aria-label="Seuil de commotion (g)" />
+          </span>
+        </label>
+        <label class="system-threshold">
+          <span class="threshold-card-title">Rotation (°/s)</span>
+          <span class="system-threshold-controls">
+            <input id="global-rotation-range" type="range" min="1" max="2000" step="1" aria-label="Seuil de rotation (°/s)" />
+            <input id="global-rotation-input" class="row-threshold-input" type="number" min="1" max="2000" step="1" aria-label="Seuil de rotation (°/s)" />
+          </span>
+        </label>
+      </div>
+      <label class="system-toggle">
+        <input id="global-rotation-alert-toggle" type="checkbox" />
+        <span>Alerte rotation activée pour tous les joueurs</span>
+      </label>
+      <p id="global-thresholds-error" class="system-stats-error hidden"></p>
+    </div>
     <div class="system-stats-heading">
       <div>
         <span class="system-stats-title"><i data-lucide="monitor-cog"></i> Raspberry Pi</span>
@@ -510,10 +536,28 @@
        MODALS & DIALOGS
        ========================================================================= -->
 
+  <!-- Modal: In-app confirmation (replaces window.confirm) -->
+  <div id="confirm-modal" class="modal-overlay hidden">
+    <div class="modal-card modal-card-compact" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+      <div class="modal-header">
+        <span class="modal-eyebrow">Confirmation</span>
+        <h2 id="confirm-title">Confirmer ?</h2>
+      </div>
+      <div class="modal-body">
+        <p id="confirm-message" class="text-secondary"></p>
+      </div>
+      <div class="modal-footer">
+        <button id="confirm-cancel-btn" class="btn btn-secondary" type="button">Annuler</button>
+        <button id="confirm-ok-btn" class="btn btn-primary" type="button">Confirmer</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Confirm ending the live match -->
   <div id="end-session-modal" class="modal-overlay hidden">
     <div class="modal-card">
       <div class="modal-header">
+        <span class="modal-eyebrow">Match en cours</span>
         <h2>Terminer le match ?</h2>
       </div>
       <div class="modal-body">
@@ -543,6 +587,7 @@
   <div id="session-modal" class="modal-overlay hidden">
     <div class="modal-card">
       <div class="modal-header">
+        <span class="modal-eyebrow">Nouveau match</span>
         <h2>Démarrer un Nouveau Match / Session</h2>
       </div>
       <div class="modal-body">
@@ -587,6 +632,7 @@
   <div id="label-modal" class="modal-overlay hidden">
     <div class="modal-card">
       <div class="modal-header">
+        <span class="modal-eyebrow">Joueur</span>
         <h2 id="label-modal-title">Nouveau satellite découvert</h2>
       </div>
       <div class="modal-body">
@@ -617,6 +663,7 @@
           />
         </div>
 
+        <p id="label-warning" class="warning-banner hidden" role="alert"></p>
         <p id="label-error" class="error-banner hidden"></p>
       </div>
       <div class="modal-footer">
@@ -631,6 +678,7 @@
   <div id="firmware-modal" class="modal-overlay hidden">
     <div class="modal-card">
       <div class="modal-header">
+        <span class="modal-eyebrow">Firmware USB</span>
         <h2>Mise à jour firmware satellite (USB)</h2>
       </div>
       <div class="modal-body">
@@ -664,6 +712,7 @@
 
         <div id="firmware-batch-progress" class="firmware-batch-progress hidden" role="status" aria-live="polite"></div>
 
+        <p id="firmware-busy-hint" class="warning-banner hidden" role="status">Flashage en cours : la fenêtre se fermera une fois toutes les cartes terminées.</p>
         <p id="firmware-error" class="error-banner hidden"></p>
       </div>
       <div class="modal-footer">
@@ -680,6 +729,7 @@
   <div id="update-modal" class="modal-overlay hidden">
     <div class="modal-card">
       <div class="modal-header">
+        <span class="modal-eyebrow">Système</span>
         <h2>Mise à jour disponible</h2>
       </div>
       <div class="modal-body">
@@ -713,7 +763,7 @@
   </div>
 
   <!-- Main JavaScript App (ES Modules) -->
-  <script type="module" src="static/js/app.js?v=20261020-rpi-system"></script>
+  <script type="module" src="static/js/app.js?v=20261021-wahoo-modals"></script>
 </body>
 </html>
 

@@ -17,6 +17,10 @@ export const CONFIG = {
   DEFAULT_ROTATION_THRESHOLD: 800.0, // in degrees/s, magnitude of the gyro vector
   MAX_ROTATION_THRESHOLD: 2000.0,
   LABEL_SNOOZE_MS: 60 * 1000,
+  FLASH_STALL_MS: 2 * 60 * 1000,        // Unlock the firmware modal if the flasher goes silent this long
+  UPDATE_RESTART_DELAY_MS: 4000,        // Wait before polling, so the old server is gone
+  UPDATE_RESTART_POLL_MS: 2000,
+  UPDATE_RESTART_MAX_POLLS: 60,
   WS_RECONNECT_DELAY_MS: 2000,
   DASHBOARD_REFRESH_INTERVAL_MS: 100,
   UPDATE_CHECK_INTERVAL_MS: 5 * 60 * 1000,

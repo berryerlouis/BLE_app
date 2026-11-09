@@ -2,7 +2,7 @@
  * Chart.js Integration & Visualizations
  * High-performance RAF rendering & Full Session Zoom/Pan
  */
-import { CONFIG } from './config.js?v=20260929-rotation-800';
+import { CONFIG } from './config.js?v=20261021-wahoo-modals';
 import { calcAccelMagnitude, calcGyroMagnitude } from './utils.js?v=20261013-threshold-bars';
 
 // Marks local maxima at or above the threshold dataset so impacts stay visible at any zoom level.

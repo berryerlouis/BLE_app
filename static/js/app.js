@@ -1,12 +1,12 @@
 /**
  * Main Application Orchestrator
  */
-import { CONFIG } from './config.js?v=20260929-rotation-800';
-import { api } from './api.js?v=20261019-device-delete';
-import { state } from './state.js?v=20261019-device-delete';
+import { CONFIG } from './config.js?v=20261021-wahoo-modals';
+import { api } from './api.js?v=20261020-rotation-toggle';
+import { state } from './state.js?v=20261020-rotation-toggle';
 import { wsClient } from './websocket.js?v=20260929-live-state';
 import { ChartManager } from './charts.js?v=20261013-peak-markers';
-import { ModalView } from './views/modalView.js?v=20261019-device-delete';
+import { ModalView } from './views/modalView.js?v=20261021-wahoo-modals';
 import { DashboardView } from './views/dashboardView.js?v=20261019-device-delete';
 import { PlayerView } from './views/playerView.js?v=20261019-device-delete';
 import { progressBar, sessionLoader } from './utils.js?v=20261013-threshold-bars';
@@ -63,6 +63,94 @@ class App {
       if (isHidden) await this.refreshSystemStats();
     });
     this.systemShutdownBtn?.addEventListener('click', () => this.shutdownSystem());
+    this.initGlobalThresholdControls();
+  }
+
+  initGlobalThresholdControls() {
+    this.globalThresholdControls = [
+      {
+        key: 'impact_threshold',
+        input: document.getElementById('global-impact-input'),
+        range: document.getElementById('global-impact-range'),
+        max: CONFIG.MAX_IMPACT_THRESHOLD,
+        unit: 'g',
+      },
+      {
+        key: 'rotation_threshold',
+        input: document.getElementById('global-rotation-input'),
+        range: document.getElementById('global-rotation-range'),
+        max: CONFIG.MAX_ROTATION_THRESHOLD,
+        unit: '°/s',
+      },
+    ];
+    for (const control of this.globalThresholdControls) {
+      control.range?.addEventListener('input', () => {
+        if (control.input) control.input.value = control.range.value;
+      });
+      control.range?.addEventListener('change', () => this.commitGlobalThreshold(control, control.range.value));
+      control.input?.addEventListener('change', () => this.commitGlobalThreshold(control, control.input.value));
+      control.input?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') control.input.blur();
+      });
+    }
+    const rotationAlertToggle = document.getElementById('global-rotation-alert-toggle');
+    rotationAlertToggle?.addEventListener('change', () => this.commitRotationAlert(rotationAlertToggle.checked));
+    api.getGlobalThresholds()
+      .then((thresholds) => this.renderGlobalThresholds(thresholds))
+      .catch((err) => console.error('Failed to load global thresholds:', err));
+  }
+
+  async commitRotationAlert(enabled) {
+    try {
+      const thresholds = await api.updateGlobalThresholds({ rotation_alert_enabled: enabled });
+      this.showGlobalThresholdError('');
+      this.renderGlobalThresholds(thresholds);
+    } catch (err) {
+      this.showGlobalThresholdError(err.message);
+      this.renderGlobalThresholds(this.globalThresholds);
+    }
+  }
+
+  async commitGlobalThreshold(control, rawValue) {
+    const value = Number(rawValue);
+    if (rawValue === '' || !Number.isFinite(value) || value <= 0 || value > control.max) {
+      this.showGlobalThresholdError(`Le seuil doit être compris entre 0 et ${control.max} ${control.unit}`);
+      this.renderGlobalThresholds(this.globalThresholds);
+      return;
+    }
+    try {
+      const thresholds = await api.updateGlobalThresholds({ [control.key]: value });
+      this.showGlobalThresholdError('');
+      this.renderGlobalThresholds(thresholds);
+    } catch (err) {
+      this.showGlobalThresholdError(err.message);
+      this.renderGlobalThresholds(this.globalThresholds);
+    }
+  }
+
+  renderGlobalThresholds(thresholds) {
+    if (!thresholds) return;
+    this.globalThresholds = { ...thresholds };
+    const rotationAlertEnabled = thresholds.rotation_alert_enabled !== false;
+    const toggle = document.getElementById('global-rotation-alert-toggle');
+    if (toggle) toggle.checked = rotationAlertEnabled;
+    for (const control of this.globalThresholdControls || []) {
+      const value = thresholds[control.key];
+      if (control.input) control.input.value = value;
+      if (control.range) control.range.value = value;
+      if (control.key === 'rotation_threshold') {
+        // With rotation alerts off, the rotation threshold no longer affects anything.
+        if (control.input) control.input.disabled = !rotationAlertEnabled;
+        if (control.range) control.range.disabled = !rotationAlertEnabled;
+      }
+    }
+  }
+
+  showGlobalThresholdError(message) {
+    const errorEl = document.getElementById('global-thresholds-error');
+    if (!errorEl) return;
+    errorEl.textContent = message;
+    errorEl.classList.toggle('hidden', !message);
   }
 
   async init() {
@@ -202,6 +290,8 @@ class App {
       if (this.serverText) {
         this.serverText.textContent = isOnline ? 'Serveur connecté' : 'Serveur déconnecté';
       }
+    } else if (event === 'global_thresholds') {
+      this.renderGlobalThresholds(payload.thresholds);
     } else if (event === 'sessions_updated') {
       this.dashboardView.renderSessionSelector();
       if (state.currentDeviceId) {
@@ -224,6 +314,8 @@ class App {
     } else if (event === 'devices_updated') {
       if (!state.currentDeviceId) {
         this.dashboardView.render();
+      } else {
+        this.playerView.renderThresholdGauges();
       }
     } else if (event === 'firmware_flash') {
       this.modalView.handleFirmwareProgress(payload);

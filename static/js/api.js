@@ -29,25 +29,21 @@ export const api = {
     return data;
   },
 
-  async updateDeviceThreshold(deviceId, threshold) {
-    const res = await fetch(`/api/devices/${encodeURIComponent(deviceId)}/threshold`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ threshold }),
-    });
+  async getGlobalThresholds() {
+    const res = await fetch('/api/settings/thresholds');
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Erreur lors de la mise à jour du seuil');
+    if (!res.ok) throw new Error(data.error || 'Impossible de charger les seuils');
     return data;
   },
 
-  async updateDeviceRotationThreshold(deviceId, threshold) {
-    const res = await fetch(`/api/devices/${encodeURIComponent(deviceId)}/rotation-threshold`, {
+  async updateGlobalThresholds(thresholds) {
+    const res = await fetch('/api/settings/thresholds', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ threshold }),
+      body: JSON.stringify(thresholds),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Erreur lors de la mise à jour du seuil de rotation');
+    if (!res.ok) throw new Error(data.error || 'Erreur lors de la mise à jour des seuils');
     return data;
   },
 
