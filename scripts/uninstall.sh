@@ -30,6 +30,8 @@ if command -v nmcli >/dev/null 2>&1; then
   nmcli connection delete "ble-wired" >/dev/null 2>&1 || true
 fi
 
+rm -f /etc/NetworkManager/dnsmasq-shared.d/ble-imu-hotspot.conf
+
 echo "==> Removing SQLite database..."
 rm -f "$APP_DIR/data.db"
 

@@ -22,7 +22,7 @@ apt-get update
 if [ "$IS_WSL" = true ]; then
   apt-get install -y python3-venv python3-pip bluetooth bluez
 else
-  apt-get install -y python3-venv python3-pip bluetooth bluez network-manager
+  apt-get install -y python3-venv python3-pip bluetooth bluez network-manager avahi-daemon dnsmasq-base
 fi
 
 echo "==> Creating Python virtual environment..."

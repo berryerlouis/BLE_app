@@ -98,7 +98,7 @@ sudo ./scripts/install.sh
 
 Le script installe :
 
-- paquets système (`bluez`, `network-manager`, `python3-venv`)
+- paquets système (`bluez`, `network-manager`, `avahi-daemon`, `dnsmasq-base`, `python3-venv`)
 - un environnement virtuel Python et les dépendances de [requirements.txt](requirements.txt)
 - un point d’accès Wi‑Fi via [scripts/setup_ap.sh](scripts/setup_ap.sh)
 - le service systemd [scripts/ble-central.service](scripts/ble-central.service), qui débloque et active tous les contrôleurs Bluetooth détectés avant de lancer la centrale
@@ -151,7 +151,19 @@ sudo systemctl restart ble-central
 
 ## Wi‑Fi AP + Ethernet
 
-Le script [scripts/setup_ap.sh](scripts/setup_ap.sh) ne touche que l’interface Wi‑Fi configurée dans [config.yaml](config.yaml). Il crée ou renforce un profil NetworkManager dédié pour l’Ethernet afin d’assurer la redémarrage automatique du réseau filaire, et il force la route par défaut à rester sur Ethernet pour que le trafic du réseau hotspot (`10.42.x.x`) passe uniquement via le Wi‑Fi.
+Le script [scripts/setup_ap.sh](scripts/setup_ap.sh) configure l’interface Wi‑Fi indiquée dans [config.yaml](config.yaml). Il crée ou renforce un profil NetworkManager dédié pour l’Ethernet afin d’assurer le redémarrage automatique du réseau filaire, et il conserve Ethernet comme route par défaut. Le hotspot utilise l’adresse fixe `10.42.0.1/24`.
+
+Pour accéder au dashboard, connectez-vous au Wi‑Fi du hotspot puis ouvrez **http://satellite.local**. Le script définit le nom de la machine entière à `satellite`, active Avahi pour annoncer ce nom en mDNS et configure également le DNS distribué aux clients du hotspot pour le résoudre. Ce nom de machine est aussi visible sur les autres réseaux connectés, et doit être unique sur chacun d’eux. Le fichier DNS créé dans `/etc/NetworkManager/dnsmasq-shared.d/` s’applique aux connexions partagées NetworkManager de la machine.
+
+Sur une installation existante, installez les dépendances avant de reconfigurer le hotspot :
+
+```bash
+sudo apt-get update
+sudo apt-get install -y avahi-daemon dnsmasq-base
+sudo ./scripts/setup_ap.sh
+```
+
+Testez la connexion depuis l’appareil utilisé pour la démonstration. La résolution `.local` dépend aussi du client : un VPN, un DNS privé ou un filtrage multicast peut l’empêcher. Vérifiez également qu’aucun autre appareil du réseau n’utilise le nom `satellite`.
 
 En cas de problème après une ancienne version du script :
 

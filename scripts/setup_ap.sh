@@ -36,6 +36,16 @@ if ! command -v nmcli >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v avahi-daemon >/dev/null 2>&1; then
+  echo "avahi-daemon not found. Install avahi-daemon before configuring the access point." >&2
+  exit 1
+fi
+
+hostnamectl set-hostname satellite
+mkdir -p /etc/NetworkManager/dnsmasq-shared.d
+printf '%s\n' 'address=/satellite.local/10.42.0.1' > /etc/NetworkManager/dnsmasq-shared.d/ble-imu-hotspot.conf
+systemctl enable --now avahi-daemon
+
 # Make sure the Ethernet interface keeps its own autoconnecting profile so it is never
 # affected by the WiFi hotspot below (both interfaces are independent, but NetworkManager
 # only guarantees Ethernet comes back up automatically if a connection profile exists for it).
@@ -68,6 +78,7 @@ nmcli connection modify "$CON_NAME" \
   802-11-wireless.mode ap \
   802-11-wireless.band bg \
   ipv4.method shared \
+  ipv4.addresses 10.42.0.1/24 \
   ipv6.method disabled \
   wifi-sec.key-mgmt wpa-psk \
   wifi-sec.psk "$PASSWORD" \
@@ -78,5 +89,5 @@ nmcli connection up "$CON_NAME"
 
 echo "Access point '$SSID' is up on $IFACE. Connected clients will get an IP via NAT (10.42.x.x)."
 echo "Ethernet stays the default route (ipv4.never-default yes on the hotspot), so SSH over eth0 is preserved."
-echo "Dashboard will be reachable at http://<pi-ip>:80 once the ble-central service starts."
+echo "Dashboard will be reachable at http://satellite.local once the ble-central service starts."
 
