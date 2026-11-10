@@ -1,7 +1,7 @@
 /**
  * Dashboard Overview View (First Page)
  */
-import { state } from '../state.js?v=20261020-rotation-toggle';
+import { state } from '../state.js?v=20261110-ui';
 import {
   fmt,
   calcAccelMagnitude,
@@ -14,7 +14,7 @@ import {
   getDeviceLinkState,
   escapeHtml,
   progressBar,
-} from '../utils.js?v=20261013-threshold-bars';
+} from '../utils.js?v=20261110-ui';
 
 export class DashboardView {
   constructor(onOpenPlayer, onEditLabel, onNewSession, onEndSession, onSelectSession, onRenameSession, onDeleteSession, onFlashFirmware) {

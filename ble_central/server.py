@@ -41,7 +41,7 @@ def create_app(
     telemetry_config: dict | None = None,
 ) -> web.Application:
     telemetry_config = telemetry_config or {}
-    app = web.Application(middlewares=[_user_action_middleware])
+    app = web.Application(middlewares=[_user_action_middleware, _static_no_cache_middleware])
     app["websockets"] = set()
     app["data_queue"] = data_queue
     app["db_queue"] = asyncio.Queue()
@@ -118,6 +118,15 @@ def create_app(
     app.on_shutdown.append(_close_websockets)
     app.on_cleanup.append(_close_db)
     return app
+
+
+@web.middleware
+async def _static_no_cache_middleware(request: web.Request, handler):
+    # Cache-busting ?v= strings are bumped by hand and often forgotten; revalidate via ETag instead.
+    response = await handler(request)
+    if request.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 @web.middleware

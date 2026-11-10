@@ -1,8 +1,8 @@
 /**
  * WebSocket Live Data Client
  */
-import { CONFIG } from './config.js?v=20261021-wahoo-modals';
-import { state } from './state.js?v=20261020-rotation-toggle';
+import { CONFIG } from './config.js?v=20261110-ui';
+import { state } from './state.js?v=20261110-ui';
 
 class WebSocketClient {
   constructor() {

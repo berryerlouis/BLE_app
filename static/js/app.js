@@ -1,15 +1,15 @@
 /**
  * Main Application Orchestrator
  */
-import { CONFIG } from './config.js?v=20261021-wahoo-modals';
-import { api } from './api.js?v=20261020-rotation-toggle';
-import { state } from './state.js?v=20261020-rotation-toggle';
-import { wsClient } from './websocket.js?v=20260929-live-state';
-import { ChartManager } from './charts.js?v=20261013-peak-markers';
-import { ModalView } from './views/modalView.js?v=20261021-wahoo-modals';
-import { DashboardView } from './views/dashboardView.js?v=20261019-device-delete';
-import { PlayerView } from './views/playerView.js?v=20261019-device-delete';
-import { progressBar, sessionLoader } from './utils.js?v=20261013-threshold-bars';
+import { CONFIG } from './config.js?v=20261110-ui';
+import { api } from './api.js?v=20261110-ui';
+import { state } from './state.js?v=20261110-ui';
+import { wsClient } from './websocket.js?v=20261110-ui';
+import { ChartManager } from './charts.js?v=20261110-ui';
+import { ModalView } from './views/modalView.js?v=20261110-ui';
+import { DashboardView } from './views/dashboardView.js?v=20261110-ui';
+import { PlayerView } from './views/playerView.js?v=20261110-ui';
+import { progressBar, sessionLoader } from './utils.js?v=20261110-ui';
 
 class App {
   constructor() {

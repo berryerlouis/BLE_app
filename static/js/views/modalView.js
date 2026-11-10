@@ -1,9 +1,9 @@
 /**
  * Modals & Dialogs Management
  */
-import { CONFIG } from '../config.js?v=20261021-wahoo-modals';
-import { api } from '../api.js?v=20261020-rotation-toggle';
-import { state } from '../state.js?v=20261020-rotation-toggle';
+import { CONFIG } from '../config.js?v=20261110-ui';
+import { api } from '../api.js?v=20261110-ui';
+import { state } from '../state.js?v=20261110-ui';
 import { escapeHtml, formatDuration } from '../utils.js';
 
 export class ModalView {

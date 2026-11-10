@@ -1,7 +1,7 @@
 /**
  * Application State Store
  */
-import { CONFIG } from './config.js?v=20261021-wahoo-modals';
+import { CONFIG } from './config.js?v=20261110-ui';
 
 class StateStore {
   constructor() {

@@ -1,7 +1,7 @@
 /**
  * Formatting & Math Utility Functions
  */
-import { CONFIG } from './config.js?v=20261021-wahoo-modals';
+import { CONFIG } from './config.js?v=20261110-ui';
 
 export function fmt(num, digits = 2) {
   if (num === null || num === undefined || Number.isNaN(Number(num))) {

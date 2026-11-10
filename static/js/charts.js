@@ -2,8 +2,8 @@
  * Chart.js Integration & Visualizations
  * High-performance RAF rendering & Full Session Zoom/Pan
  */
-import { CONFIG } from './config.js?v=20261021-wahoo-modals';
-import { calcAccelMagnitude, calcGyroMagnitude } from './utils.js?v=20261013-threshold-bars';
+import { CONFIG } from './config.js?v=20261110-ui';
+import { calcAccelMagnitude, calcGyroMagnitude } from './utils.js?v=20261110-ui';
 
 // Marks local maxima at or above the threshold dataset so impacts stay visible at any zoom level.
 function peakRadius(thresholdDatasetIndex) {
